@@ -111,7 +111,9 @@ function buildGunModel(id){
     g.userData.muzzle = new THREE.Vector3(0,0,-0.95);
     g.userData.eject  = new THREE.Vector3(0.05,0,0.3);
     g.userData.base = new THREE.Vector3(0.22,-0.20,-0.36);
-    g.userData.ads  = new THREE.Vector3(0.02,-0.15,-0.30);
+    /* Shoulder-fired: the tube is tucked right and low so you sight past it.
+       Centring it like a rifle put 60% of the launcher over the target. */
+    g.userData.ads  = new THREE.Vector3(0.09,-0.21,-0.30);
   }
   buildHands(g, id==='shotgun'||id==='sniper'||id==='launcher');
   g.traverse(function(o){ o.castShadow=false; o.receiveShadow=false; });

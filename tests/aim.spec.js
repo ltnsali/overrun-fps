@@ -152,6 +152,52 @@ test.describe('aim fidelity', () => {
     expect(Math.abs(r.ndc.y)).toBeLessThan(0.01);
     expect(r.damage).toBeGreaterThan(0);
   });
+
+  /* The RPG used to be posed like a rifle, putting 62% of the launcher over the
+     target the moment you aimed. Iron sights legitimately cross the centre, so
+     the budget allows a thin post but not a weapon body. */
+  test('no weapon covers the target while aiming', async ({ page }) => {
+    await bootRound(page);
+
+    const occlusion = await page.evaluate(() => {
+      const ray = new THREE.Raycaster();
+      const out = [];
+      for (let i = 0; i < PL.weapons.length; i++) {
+        switchWeapon(i, true);
+        PL.ads = 1; PL.adsTarget = 1;
+        PL.sway.x = 0; PL.sway.y = 0; PL.bobAmt = 0;
+        PL.viewKick = 0; PL.viewRot = 0; PL.viewSwitch = 0;
+        PL.reloading = 0; PL.meleeAnim = 0; PL.sprinting = false;
+        // Settle the damped view-model pose, then refresh the matrices the
+        // raycaster reads - normally the renderer does that.
+        for (let k = 0; k < 300; k++) animateViewModel(1 / 60);
+        updateCamera(0);
+        G.viewCam.updateMatrixWorld(true);
+        G.viewScene.updateMatrixWorld(true);
+
+        const m = VM.cur;
+        let hit = 0;
+        let total = 0;
+        if (m.visible) {
+          for (let gx = -6; gx <= 6; gx++) {
+            for (let gy = -6; gy <= 6; gy++) {
+              total++;
+              ray.setFromCamera({ x: gx * 0.02, y: gy * 0.02 }, G.viewCam);
+              if (ray.intersectObject(m, true).length) hit++;
+            }
+          }
+        }
+        out.push({ weapon: curW().def.name, pct: total ? Math.round((hit / total) * 100) : 0 });
+      }
+      return out;
+    });
+
+    expect(occlusion.length).toBe(5);
+    for (const w of occlusion) {
+      expect(w.pct, `${w.weapon} covers ${w.pct}% of the sight picture while aiming`)
+        .toBeLessThanOrEqual(10);
+    }
+  });
 });
 
 test.describe('touch FIRE / AIM buttons', () => {
