@@ -128,7 +128,8 @@ window.addEventListener('pagehide', function(){
 var MP_P2P_SLOTS = 3;
 var MP_P2P_TRIES = 2;
 var MP_RETRY_MS = 1200;
-var MP_JOIN_MS = 4000;
+var MP_JOIN_MS = 3500;        /* nobody answered our offer - treat the slot as dead */
+var MP_HANDSHAKE_MS = 12000;  /* somebody did answer - let ICE finish, it is slow */
 var MP_CLAIM_MS = 5000;
 function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
 
@@ -213,7 +214,7 @@ function mpP2PSlot(slot, onReady){
 
 /* Connect to whoever already owns this slot. */
 function mpP2PTryJoin(slot, cb){
-  var settled = false, peer;
+  var settled = false, peer, conn = null;
   try{ peer = new Peer(undefined, mpPeerOpts()); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
 
@@ -223,11 +224,23 @@ function mpP2PTryJoin(slot, cb){
     try{ peer.destroy(); }catch(e){}
     cb(false);
   }
-  var t = setTimeout(fail, MP_JOIN_MS);
+
+  /* An empty slot fails fast - the server answers EXPIRE - but a live host needs
+     several seconds of ICE before the channel opens. One deadline for both meant
+     walking straight past arenas that had already answered our offer, leaving two
+     players hosting separate slots of the same room. So the deadline is short
+     until the host answers, and generous once we know somebody is really there. */
+  var t = setTimeout(function(){
+    var pc = conn && conn.peerConnection;
+    if(pc && pc.remoteDescription){
+      t = setTimeout(fail, MP_HANDSHAKE_MS);
+      return;
+    }
+    fail();
+  }, MP_JOIN_MS);
 
   peer.on('error', function(e){ mpP2PNoteErr(e); fail(); });
   peer.on('open', function(){
-    var conn;
     try{ conn = peer.connect(mpHostId(NET.room, slot), {reliable:false}); }
     catch(e){ return fail(); }
     conn.on('error', fail);

@@ -146,6 +146,69 @@ test.describe('deathmatch lobby', () => {
     expect(await page.evaluate(() => window.G.state)).toBe('menu');
   });
 
+  test('a host that is slow to finish the handshake is not abandoned', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          // A real host: answers our offer straight away, but ICE only completes
+          // after 6s. Giving up before that leaves both players hosting separate
+          // slots of the same room, each waiting for the other.
+          window.Peer = function () {
+            const on = {};
+            this.on = (k, f) => {
+              on[k] = f;
+            };
+            this.destroy = () => {};
+            this.connect = () => {
+              const ch = {};
+              const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
+              setTimeout(() => (conn.peerConnection.remoteDescription = { sdp: 'x' }), 100);
+              setTimeout(() => ch.open && ch.open(), 6000);
+              return conn;
+            };
+            setTimeout(() => on.open && on.open('anon'), 10);
+          };
+          window.NET.room = 'TEST';
+          const t0 = Date.now();
+          window.mpP2PTryJoin(0, (ok) => resolve({ ok, ms: Date.now() - t0 }));
+        })
+    );
+    expect(result.ok, 'a host that answered must not be walked past').toBe(true);
+    expect(result.ms, 'it should have waited out the slow handshake').toBeGreaterThan(5000);
+  });
+
+  test('a dead slot is given up on quickly', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          // A ghost registration: still listed, but it never answers the offer.
+          window.Peer = function () {
+            const on = {};
+            this.on = (k, f) => {
+              on[k] = f;
+            };
+            this.destroy = () => {};
+            this.connect = () => ({ peerConnection: {}, on: () => {}, send: () => {} });
+            setTimeout(() => on.open && on.open('anon'), 10);
+          };
+          window.NET.room = 'TEST';
+          const t0 = Date.now();
+          window.mpP2PTryJoin(0, (ok) => resolve({ ok, ms: Date.now() - t0 }));
+        })
+    );
+    expect(result.ok).toBe(false);
+    // Patience is only extended to hosts that actually answered.
+    expect(result.ms, 'a silent slot must not burn the long deadline').toBeLessThan(6000);
+  });
+
   test('?peer= redirects signalling to another server', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0&peer=' + encodeURIComponent('wss://sig.example.test:8443/rtc'));
