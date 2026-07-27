@@ -76,14 +76,17 @@ function mpBuildSeededWorld(room){
 
 /* ---- transport ---------------------------------------------------------- */
 
+/* An explicit ?relay= always wins. Otherwise a relay can only be guessed for pages
+   served over plain http (localhost / LAN dev): an https page is not allowed to open
+   a ws:// socket, and a static host such as GitHub Pages has no relay behind it at
+   all. Returning null means "no server here" so the caller can use the local arena. */
 function mpRelayUrl(){
   try{
     var q = new URLSearchParams(location.search).get('relay');
     if(q) return q;
   }catch(e){}
-  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var host = location.hostname || '127.0.0.1';
-  return proto + '//' + host + ':8787';
+  if(location.protocol !== 'http:') return null;
+  return 'ws://' + (location.hostname || '127.0.0.1') + ':8787';
 }
 
 function mpConnect(kind, room, name, onReady){
@@ -115,7 +118,9 @@ function mpConnect(kind, room, name, onReady){
     return;
   }
 
-  var url = mpRelayUrl() + '/?room=' + encodeURIComponent(NET.room);
+  var base = mpRelayUrl();
+  if(!base){ NET.err = 'No arena server is reachable from this page.'; onReady(false); return; }
+  var url = base + '/?room=' + encodeURIComponent(NET.room);
   var sock;
   try{ sock = new WebSocket(url); }
   catch(e){ NET.err = 'Bad relay address.'; onReady(false); return; }
@@ -125,7 +130,7 @@ function mpConnect(kind, room, name, onReady){
     if(settled) return;
     settled = true;
     try{ sock.close(); }catch(e){}
-    NET.err = 'No relay at ' + mpRelayUrl() + ' — run "npm run relay".';
+    NET.err = 'No arena server answered at ' + base + '.';
     onReady(false);
   }, 4000);
 
@@ -144,7 +149,8 @@ function mpConnect(kind, room, name, onReady){
   sock.onerror = function(){
     if(settled) return;
     settled = true; clearTimeout(giveUp);
-    NET.err = 'Could not reach the relay at ' + mpRelayUrl() + '.';
+    try{ sock.close(); }catch(e){}
+    NET.err = 'Could not reach the arena server at ' + base + '.';
     onReady(false);
   };
   sock.onclose = function(){
@@ -732,22 +738,37 @@ function mpEnterArena(solo){
   document.getElementById('mpName').value = name;
   document.getElementById('mpRoom').value = room;
   try{ localStorage.setItem('overrun_name', name); }catch(e){}
-
   mpLobbyError('');
-  mpRosterText(solo ? 'STARTING SOLO PRACTICE\u2026' : 'CONNECTING TO ARENA ' + room + '\u2026');
 
-  var kind = solo ? 'off' : (mpLocalWanted() ? 'local' : 'ws');
-  mpConnect(kind, room, name, function(ok){
-    if(!ok){
-      mpRosterText('');
-      mpLobbyError(NET.err || 'Could not join the arena.');
-      return;
-    }
-    mpRosterText('');
-    startGame('dm');
+  if(solo){
+    mpRosterText('STARTING SOLO PRACTICE\u2026');
+    mpConnect('off', room, name, function(){ mpRosterText(''); startGame('dm'); });
+    return;
+  }
+
+  /* No server to talk to (static host, https page, file://)? The same-device arena
+     is still real multiplayer between tabs, so go straight there. */
+  var relay = mpRelayUrl();
+  if(!relay || mpLocalWanted()){ mpJoinLocalArena(room, name, !relay); return; }
+
+  mpRosterText('CONNECTING TO ARENA ' + room + '\u2026');
+  mpConnect('ws', room, name, function(ok){
+    if(ok){ mpRosterText(''); startGame('dm'); return; }
+    /* Never dead-end the player on a missing server - drop to the local arena. */
+    mpJoinLocalArena(room, name, true);
   });
 }
-/* ?net=local plays across tabs on one device with no relay at all. */
+
+function mpJoinLocalArena(room, name, explain){
+  mpRosterText('OPENING LOCAL ARENA ' + room + '\u2026');
+  mpConnect('local', room, name, function(ok){
+    mpRosterText('');
+    if(!ok){ mpLobbyError(NET.err || 'This browser cannot open an arena.'); return; }
+    startGame('dm');
+    if(explain) notice('LOCAL ARENA \u00B7 OPEN A SECOND TAB WITH CODE ' + room);
+  });
+}
+/* ?net=local forces the cross-tab arena even when a relay is available. */
 function mpLocalWanted(){
   try{ return new URLSearchParams(location.search).get('net') === 'local'; }
   catch(e){ return false; }

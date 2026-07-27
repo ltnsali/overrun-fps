@@ -123,7 +123,7 @@ test.describe('deathmatch lobby', () => {
     });
   });
 
-  test('an unreachable relay reports an error instead of starting', async ({ page }) => {
+  test('an unreachable arena server falls back to the local arena', async ({ page }) => {
     await useLocalThree(page);
     // Port 1 is guaranteed to have nothing listening.
     await page.goto('/?touch=0&relay=' + encodeURIComponent('ws://127.0.0.1:1'));
@@ -132,8 +132,79 @@ test.describe('deathmatch lobby', () => {
     await page.locator('#btnMulti').click();
     await page.locator('#btnMpStart').click();
 
-    await expect(page.locator('#mpErr')).toContainText(/relay/i, { timeout: 15_000 });
-    expect(await page.evaluate(() => window.G.state)).toBe('menu');
+    // The player must land in a playable match, not on a dead-end error.
+    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+      timeout: 25_000
+    });
+    expect(await page.evaluate(() => window.NET.kind)).toBe('local');
+    await expect(page.locator('#notice')).toContainText(/LOCAL ARENA/i);
+    expect(await page.evaluate(() => document.getElementById('mpErr').textContent)).toBe('');
+  });
+
+  test('transport selection: derived relay, explicit override, forced local', async ({ page }) => {
+    await useLocalThree(page);
+
+    // Served over plain http, so a relay is plausible and gets derived.
+    await page.goto('/?touch=0');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(await page.evaluate(() => window.mpRelayUrl())).toMatch(/^ws:\/\/.+:8787$/);
+
+    // An explicit ?relay= always wins.
+    await page.goto('/?touch=0&relay=' + encodeURIComponent('ws://example.test:9999'));
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(await page.evaluate(() => window.mpRelayUrl())).toBe('ws://example.test:9999');
+
+    // ?net=local forces the cross-tab arena even when a relay could be reached.
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    await page.locator('#btnMulti').click();
+    await page.locator('#btnMpStart').click();
+    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+      timeout: 20_000
+    });
+    expect(await page.evaluate(() => window.NET.kind)).toBe('local');
+  });
+
+  test('two tabs on one device share a local arena with no server at all', async ({ browser }) => {
+    // BroadcastChannel is per browser context, so both tabs live in one context.
+    const ctx = await browser.newContext();
+    const a = await ctx.newPage();
+    const b = await ctx.newPage();
+
+    for (const p of [a, b]) {
+      await useLocalThree(p);
+      await p.goto('/?touch=0&net=local');
+      await p.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
+        timeout: 45_000
+      });
+    }
+    await a.evaluate(() => {
+      document.getElementById('mpName').value = 'TABA';
+      document.getElementById('mpRoom').value = 'TABS';
+      document.getElementById('btnMulti').click();
+      document.getElementById('btnMpStart').click();
+    });
+    await b.evaluate(() => {
+      document.getElementById('mpName').value = 'TABB';
+      document.getElementById('mpRoom').value = 'TABS';
+      document.getElementById('btnMulti').click();
+      document.getElementById('btnMpStart').click();
+    });
+    for (const p of [a, b]) {
+      await p.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+        timeout: 20_000
+      });
+    }
+
+    // They must see each other through BroadcastChannel alone.
+    await expect
+      .poll(() => a.evaluate(() => Object.keys(window.NET.peers).length), { timeout: 15_000 })
+      .toBe(1);
+    expect(
+      await a.evaluate(() => window.NET.peers[Object.keys(window.NET.peers)[0]].name)
+    ).toBe('TABB');
+
+    await ctx.close();
   });
 
   test('solo practice runs a deathmatch with bots and no network', async ({ page }) => {
