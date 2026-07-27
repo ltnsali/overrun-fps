@@ -122,6 +122,40 @@ test.describe('gameplay', () => {
     await expect(page.locator('#pause')).not.toHaveClass(/on/);
   });
 
+  test('settings survive a reload', async ({ page }) => {
+    await bootGame(page, { query: 'touch=0' });
+
+    await page.evaluate(() => {
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = String(v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      set('optFov', 96);
+      set('optSens', 1.75);
+      set('optRes', 0.8);
+      const sh = document.getElementById('optShadow');
+      if (sh.checked) sh.click();
+    });
+    const before = await page.evaluate(() => ({ ...window.SET }));
+    expect(before.fov).toBe(96);
+    expect(before.shadows).toBe(false);
+
+    await page.reload();
+    await page.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
+      timeout: 45_000
+    });
+
+    const after = await page.evaluate(() => ({ ...window.SET }));
+    expect(after.fov, 'field of view should be remembered').toBe(96);
+    expect(after.sens).toBeCloseTo(1.75, 2);
+    expect(after.res).toBeCloseTo(0.8, 2);
+    expect(after.shadows, 'shadow toggle should be remembered').toBe(false);
+    // ...and the reloaded game should actually use them.
+    await page.evaluate(() => startGame('dm'));
+    await expect.poll(() => page.evaluate(() => Math.round(window.G.camera.fov))).toBe(96);
+  });
+
   test('HUD panels stay inside the viewport in landscape', async ({ page }, testInfo) => {
     skipIfPortrait(page);
     await bootGame(page, { touch: true });

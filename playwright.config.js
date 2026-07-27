@@ -5,9 +5,11 @@ const PORT = Number(process.env.PORT || 4173);
 const RELAY_PORT = Number(process.env.RELAY_PORT || 8788);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
-/* Device projects cover layout and input. Multiplayer is device-independent and
-   needs two browser contexts per test, so it gets one project of its own. */
-const DEVICE_ONLY = /multiplayer\.spec\.js/;
+/* Device projects cover layout and input. These specs are device-independent, so
+   they run once instead of four times. Multiplayer also needs two browser
+   contexts per test, so it gets a project of its own. */
+const LOGIC_SPECS = /(multiplayer|combat)\.spec\.js/;
+const MULTIPLAYER_SPEC = /multiplayer\.spec\.js/;
 
 /* WebGL in headless Chromium needs the software rasteriser to be usable. */
 const GL_ARGS = [
@@ -38,12 +40,12 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'phone-portrait',
-      testIgnore: DEVICE_ONLY,
+      testIgnore: LOGIC_SPECS,
       use: { ...devices['Pixel 7'], viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 }
     },
     {
       name: 'phone-landscape',
-      testIgnore: DEVICE_ONLY,
+      testIgnore: LOGIC_SPECS,
       use: {
         ...devices['iPhone 14 Pro Max'],
         browserName: 'chromium',
@@ -53,17 +55,17 @@ module.exports = defineConfig({
     },
     {
       name: 'tablet',
-      testIgnore: DEVICE_ONLY,
+      testIgnore: LOGIC_SPECS,
       use: { ...devices['iPad (gen 7) landscape'], browserName: 'chromium' }
     },
     {
       name: 'desktop',
-      testIgnore: DEVICE_ONLY,
+      testIgnore: MULTIPLAYER_SPEC,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } }
     },
     {
       name: 'multiplayer',
-      testMatch: DEVICE_ONLY,
+      testMatch: MULTIPLAYER_SPEC,
       /* Each test drives two full WebGL clients - running them at the same time
          starves the software rasteriser, so this project goes one at a time. */
       fullyParallel: false,

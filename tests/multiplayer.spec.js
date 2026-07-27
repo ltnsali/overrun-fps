@@ -317,6 +317,29 @@ test.describe('deathmatch lobby', () => {
     await expect.poll(() => page.evaluate(() => window.MATCH.kills)).toBe(1);
   });
 
+  test('a match ends when the clock runs out', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    await page.locator('#btnMulti').click();
+    await page.locator('#btnMpStart').click();
+    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+      timeout: 20_000
+    });
+
+    // Wind the clock to the final moment rather than waiting five minutes.
+    await page.evaluate(() => {
+      MATCH.kills = 2;
+      MATCH.t = MATCH.timeLimit - 0.05;
+    });
+
+    await expect(page.locator('#mover')).toHaveClass(/on/, { timeout: 20_000 });
+    expect(await page.evaluate(() => window.MATCH.on)).toBe(false);
+    await expect(page.locator('#moverRows .brow.me')).toBeVisible();
+    await expect(page.locator('#moverFoot')).toContainText(/PLAYED/i);
+  });
+
   test('TAB opens the scoreboard during a match', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0');
