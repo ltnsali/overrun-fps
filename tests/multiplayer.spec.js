@@ -146,6 +146,26 @@ test.describe('deathmatch lobby', () => {
     expect(await page.evaluate(() => window.G.state)).toBe('menu');
   });
 
+  test('?peer= redirects signalling to another server', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&peer=' + encodeURIComponent('wss://sig.example.test:8443/rtc'));
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    // A blocked default signalling host is otherwise unfixable from the player's side.
+    expect(await page.evaluate(() => window.mpPeerOpts())).toMatchObject({
+      host: 'sig.example.test',
+      port: 8443,
+      path: '/rtc',
+      secure: true
+    });
+    // Bare host:port is enough, and no ?peer= leaves the library default alone.
+    await page.goto('/?touch=0&peer=' + encodeURIComponent('sig.example.test'));
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(await page.evaluate(() => window.mpPeerOpts().host)).toBe('sig.example.test');
+    await page.goto('/?touch=0');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(await page.evaluate(() => window.mpPeerOpts().host)).toBeUndefined();
+  });
+
   test('a player who cannot get online plays bots instead of hitting a dead end', async ({
     page
   }) => {

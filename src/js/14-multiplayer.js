@@ -132,6 +132,22 @@ var MP_JOIN_MS = 4000;
 var MP_CLAIM_MS = 5000;
 function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
 
+/* Signalling defaults to the PeerJS cloud, which some networks block outright -
+   a blocked host is otherwise unfixable from the player's side. ?peer=host[:port][/path]
+   points at any other PeerServer instead. */
+function mpPeerOpts(){
+  var o = {debug:0}, q = '';
+  try{ q = (new URLSearchParams(location.search).get('peer') || '').trim(); }catch(e){}
+  if(!q) return o;
+  var m = /^(?:(wss?):\/\/)?([^:\/?#]+)(?::(\d+))?(\/[^?#]*)?$/.exec(q);
+  if(!m) return o;
+  o.host = m[2];
+  o.secure = m[1] ? (m[1] === 'wss') : (location.protocol === 'https:');
+  o.port = m[3] ? +m[3] : (o.secure ? 443 : 80);
+  o.path = m[4] || '/';
+  return o;
+}
+
 /* Tell "this slot is dead" apart from "the signalling server is dead". Only the
    first is worth stepping over: if we cannot reach the server at all then every
    remaining slot will fail exactly the same way, slowly, for nothing.
@@ -198,7 +214,7 @@ function mpP2PSlot(slot, onReady){
 /* Connect to whoever already owns this slot. */
 function mpP2PTryJoin(slot, cb){
   var settled = false, peer;
-  try{ peer = new Peer(undefined, {debug:0}); }
+  try{ peer = new Peer(undefined, mpPeerOpts()); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
 
   function fail(){
@@ -230,7 +246,7 @@ function mpP2PTryJoin(slot, cb){
 /* Nobody answered, so try to own this slot and host the arena. */
 function mpP2PTryClaim(slot, cb){
   var settled = false, peer;
-  try{ peer = new Peer(mpHostId(NET.room, slot), {debug:0}); }
+  try{ peer = new Peer(mpHostId(NET.room, slot), mpPeerOpts()); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
 
   function fail(){
