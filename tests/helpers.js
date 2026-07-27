@@ -133,7 +133,15 @@ async function exitFullscreen(page) {
 /** Resize the viewport and give the page a moment to settle (rAF-debounced). */
 async function resizeTo(page, width, height) {
   await exitFullscreen(page);
-  await page.setViewportSize({ width, height });
+  try {
+    await page.setViewportSize({ width, height });
+  } catch (err) {
+    // startGame() requests fullscreen asynchronously, so it can land between the
+    // exit above and this call. Drop out of it and try once more.
+    if (!/fullscreen|setWindowBounds/i.test(String(err))) throw err;
+    await exitFullscreen(page);
+    await page.setViewportSize({ width, height });
+  }
   // Wait for the layout to actually reflect BOTH dimensions before measuring.
   await page.waitForFunction(
     ([w, h]) => {
@@ -160,7 +168,10 @@ async function startPlaying(page) {
   await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
     timeout: 25_000
   });
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+  // startGame() fires goFullscreen() after flipping the state, so let that request
+  // settle and undo it - Chromium refuses to resize a fullscreen window.
+  await nextFrame(page, 4);
+  await exitFullscreen(page);
 }
 
 /* ---- synthetic touch gestures -------------------------------------------

@@ -115,101 +115,102 @@ function mpLoadPeerJs(cb){
   })();
 }
 
+/* Hand the peer id back when the tab goes away. A registration that outlives its
+   owner is exactly what strands the next player who tries to join. */
+window.addEventListener('pagehide', function(){
+  if(NET.peer){ try{ NET.peer.destroy(); }catch(e){} }
+});
+
+/* A room maps to a small run of well-known ids. A browser that dies without
+   disconnecting leaves its id registered but unanswerable, which would otherwise
+   lock everyone out of the arena, so we walk past any slot that is registered but
+   dead. Joining is tried before claiming so players converge on a live host. */
+var MP_P2P_SLOTS = 3;
+var MP_JOIN_MS = 4000;
+var MP_CLAIM_MS = 5000;
+function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
+
 function mpP2PConnect(onReady){
   mpLoadPeerJs(function(ok){
     if(!ok){
       NET.err = 'Could not load the online networking library. Check your connection.';
       return onReady(false);
     }
-    mpP2PClaimHost(onReady, 0);
+    NET.err = '';
+    mpP2PSlot(0, onReady);
   });
 }
 
-/* Claiming and joining hand off to each other: the room id can be taken by a host
-   that has already gone away, so a failure on either side retries as the other.
-   `step` bounds that so a dead arena cannot ping-pong forever. */
-var MP_P2P_STEPS = 3;
-
-function mpP2PClaimHost(onReady, step){
-  step = step || 0;
-  var settled = false;
-  var peer;
-  try{ peer = new Peer(mpHostId(NET.room), {debug:0}); }
-  catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
-
-  function bail(why){
-    if(settled) return;
-    settled = true; clearTimeout(giveUp);
-    try{ peer.destroy(); }catch(e){}
-    if(step < MP_P2P_STEPS){ mpP2PJoinHost(onReady, step + 1); return; }
-    NET.err = why;
-    if(onReady) onReady(false);
+function mpP2PSlot(slot, onReady){
+  if(slot >= MP_P2P_SLOTS){
+    NET.err = NET.err || 'Could not reach the arena. Check your connection and try again.';
+    return onReady(false);
   }
+  mpP2PTryJoin(slot, function(joined){
+    if(joined) return onReady(true);
+    mpP2PTryClaim(slot, function(claimed){
+      if(claimed) return onReady(true);
+      mpP2PSlot(slot + 1, onReady);   /* this slot is a ghost - step over it */
+    });
+  });
+}
 
-  var giveUp = setTimeout(function(){
-    bail('Could not reach the matchmaking service. Check your connection and try again.');
-  }, 9000);
+/* Connect to whoever already owns this slot. */
+function mpP2PTryJoin(slot, cb){
+  var settled = false, peer;
+  try{ peer = new Peer(undefined, {debug:0}); }
+  catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
 
+  function fail(){
+    if(settled) return;
+    settled = true; clearTimeout(t);
+    try{ peer.destroy(); }catch(e){}
+    cb(false);
+  }
+  var t = setTimeout(fail, MP_JOIN_MS);
+
+  peer.on('error', fail);
+  peer.on('open', function(){
+    var conn;
+    try{ conn = peer.connect(mpHostId(NET.room, slot), {reliable:false}); }
+    catch(e){ return fail(); }
+    conn.on('error', fail);
+    conn.on('open', function(){
+      if(settled) return;
+      settled = true; clearTimeout(t);
+      NET.peer = peer; NET.kind = 'p2p'; NET.isHost = false; NET.conns = [];
+      NET.slot = slot;
+      mpP2PAddConn(conn, false);
+      mpP2PStatus();
+      cb(true);
+    });
+  });
+}
+
+/* Nobody answered, so try to own this slot and host the arena. */
+function mpP2PTryClaim(slot, cb){
+  var settled = false, peer;
+  try{ peer = new Peer(mpHostId(NET.room, slot), {debug:0}); }
+  catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
+
+  function fail(){
+    if(settled) return;
+    settled = true; clearTimeout(t);
+    try{ peer.destroy(); }catch(e){}
+    cb(false);
+  }
+  var t = setTimeout(fail, MP_CLAIM_MS);
+
+  peer.on('error', fail);
   peer.on('open', function(){
     if(settled) return;
-    settled = true; clearTimeout(giveUp);
+    settled = true; clearTimeout(t);
     NET.peer = peer; NET.kind = 'p2p'; NET.isHost = true; NET.conns = [];
+    NET.slot = slot;
     peer.on('connection', function(conn){ mpP2PAddConn(conn, true); });
     peer.on('disconnected', function(){ try{ peer.reconnect(); }catch(e){} });
     mpP2PStatus();
-    if(onReady) onReady(true);
-  });
-
-  peer.on('error', function(e){
-    var type = e && e.type;
-    if(!settled && type === 'unavailable-id'){
-      /* Someone already holds this arena - go and join them. */
-      settled = true; clearTimeout(giveUp);
-      try{ peer.destroy(); }catch(e2){}
-      mpP2PJoinHost(onReady, step + 1);
-      return;
-    }
-    bail('Online play failed to start (' + (type || 'unknown') + ').');
-  });
-}
-
-function mpP2PJoinHost(onReady, step){
-  step = step || 0;
-  var settled = false;
-  var peer;
-  try{ peer = new Peer(undefined, {debug:0}); }
-  catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
-
-  function bail(why){
-    if(settled) return;
-    settled = true; clearTimeout(giveUp);
-    try{ peer.destroy(); }catch(e){}
-    /* The registration is there but nobody is answering it - take the arena over. */
-    if(step < MP_P2P_STEPS){ mpP2PClaimHost(onReady, step + 1); return; }
-    NET.err = why;
-    if(onReady) onReady(false);
-  }
-
-  var giveUp = setTimeout(function(){
-    bail('Could not reach the arena host. Check your connection and try again.');
-  }, 9000);
-
-  peer.on('open', function(){
-    var conn;
-    try{ conn = peer.connect(mpHostId(NET.room), {reliable:false}); }
-    catch(e){ return bail('Could not open a connection to the arena.'); }
-    conn.on('open', function(){
-      if(settled) return;
-      settled = true; clearTimeout(giveUp);
-      NET.peer = peer; NET.kind = 'p2p'; NET.isHost = false; NET.conns = [];
-      mpP2PAddConn(conn, false);
-      mpP2PStatus();
-      if(onReady) onReady(true);
-    });
-    conn.on('error', function(){ bail('Could not open a connection to the arena.'); });
-  });
-  peer.on('error', function(e){
-    bail('Could not join the arena (' + ((e && e.type) || 'unknown') + ').');
+    cb(true);
   });
 }
 
@@ -249,9 +250,9 @@ function mpP2PRehost(){
     try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
     NET.peer = null; NET.conns = [];
     mpStatus('arena host lost \u00B7 reconnecting\u2026', true);
-    mpP2PClaimHost(function(ok){
+    mpP2PConnect(function(ok){
       if(!ok) mpStatus('arena connection lost', true);
-    }, 0);
+    });
   }, 400 + Math.random()*900);
 }
 
