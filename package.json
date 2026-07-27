@@ -1,0 +1,17 @@
+{
+  "name": "overrun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OVERRUN - single-file WebGL FPS",
+  "scripts": {
+    "serve": "node tests/server.js",
+    "relay": "node server/relay.js",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "three": "0.128.0"
+  }
+}

@@ -1,0 +1,24 @@
+:root{
+  --accent:#39d7ff;
+  --accent2:#ff3b5c;
+  --warn:#ffc24b;
+  --good:#57ff9a;
+  --bg:#05070c;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{
+  width:100%;height:100%;overflow:hidden;background:var(--bg);
+  overscroll-behavior:none; touch-action:none; -webkit-text-size-adjust:100%;
+}
+body{
+  font-family:"Rajdhani","Segoe UI",Tahoma,sans-serif;
+  color:#dff3ff; cursor:default; user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+canvas{display:block;}
+#app{position:fixed;inset:0;overflow:hidden;}
+/* The WebGL canvas is laid out by CSS (never by inline px from three.js) so it can
+   never be left at a stale size - e.g. half the screen blank after a rotation. */
+#app canvas{position:absolute;left:0;top:0;width:100%;height:100%;}

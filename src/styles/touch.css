@@ -1,0 +1,104 @@
+   TOUCH / MOBILE
+   ========================================================================== */
+.screen{touch-action:pan-y;-webkit-overflow-scrolling:touch;}
+.btn,.row input,.wslot{touch-action:manipulation;}
+
+/* ---- on-screen controls layer ---- */
+#touchUI{
+  position:fixed;inset:0;z-index:15;display:none;pointer-events:none;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#touchUI.on{display:block;}
+
+#tStick{
+  position:fixed;width:132px;height:132px;margin:-66px 0 0 -66px;border-radius:50%;
+  border:1px solid rgba(57,215,255,.28);background:rgba(8,16,26,.26);opacity:.38;
+  transition:opacity .12s,border-color .12s,box-shadow .12s;
+}
+#tStick.on{opacity:.95;}
+#tStick.sprint{border-color:var(--good);box-shadow:0 0 22px rgba(87,255,154,.3);}
+#tKnob{
+  position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+  background:rgba(57,215,255,.26);border:1px solid rgba(57,215,255,.7);
+  box-shadow:0 0 16px rgba(57,215,255,.28);
+}
+#tStick.sprint #tKnob{background:rgba(87,255,154,.26);border-color:var(--good);}
+
+.tbtn{
+  position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;border:1px solid rgba(57,215,255,.35);background:rgba(8,16,26,.42);
+  color:#cfeaff;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1.15;
+  text-transform:uppercase;text-align:center;backdrop-filter:blur(2px);
+  transition:background .07s,border-color .07s,transform .07s;
+}
+.tbtn.act{background:rgba(57,215,255,.32);border-color:var(--accent);color:#fff;transform:scale(.93);}
+
+#tFire{right:20px;bottom:20px;width:96px;height:96px;font-size:13px;
+  border-color:rgba(255,59,92,.45);background:rgba(40,8,14,.42);}
+#tFire.act{background:rgba(255,59,92,.34);border-color:var(--accent2);}
+#tAds   {right:128px;bottom:28px; width:66px;height:66px;}
+#tMelee {right:206px;bottom:22px; width:54px;height:54px;font-size:10px;}
+#tJump  {right:34px; bottom:126px;width:66px;height:66px;}
+#tReload{right:126px;bottom:106px;width:62px;height:62px;font-size:10px;}
+#tNade  {right:206px;bottom:88px; width:54px;height:54px;font-size:10px;}
+#tSwap  {right:206px;bottom:154px;width:54px;height:54px;font-size:10px;}
+#tCrouch{left:18px;  bottom:18px; width:58px;height:58px;font-size:10px;}
+#tPause {left:14px;  top:14px;    width:46px;height:46px;font-size:16px;}
+
+/* ---- rotate-to-landscape gate ---- */
+#rotate{
+  position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+  flex-direction:column;background:var(--bg);text-align:center;padding:30px;
+}
+body.touch.portrait #rotate{display:flex;}
+#rotate .phone{
+  width:56px;height:92px;border:3px solid var(--accent);border-radius:9px;margin-bottom:24px;
+  box-shadow:0 0 26px rgba(57,215,255,.35);animation:tilt 1.8s ease-in-out infinite;
+}
+@keyframes tilt{0%,35%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+#rotate p{letter-spacing:6px;font-size:14px;opacity:.85;}
+#rotate small{display:block;margin-top:10px;letter-spacing:2px;font-size:11px;opacity:.45;}
+
+/* ---- compact HUD for touch devices ---- */
+body.touch #scoreBox{left:68px;top:10px;padding:6px 12px;min-width:126px;}
+body.touch #score{font-size:18px;}
+body.touch #scoreLbl,body.touch #comboLbl{font-size:9px;letter-spacing:2px;}
+body.touch #combo{font-size:12px;}
+body.touch #waveBox{top:10px;padding:5px 16px;min-width:148px;}
+body.touch #waveTitle{font-size:9px;letter-spacing:3px;}
+body.touch #waveNum{font-size:17px;letter-spacing:2px;}
+body.touch #enemiesLeft{font-size:9px;}
+body.touch #mapBox{right:14px;top:10px;padding:5px;}
+body.touch #minimap{width:102px;height:102px;}
+body.touch #killfeed{right:14px;top:128px;width:184px;}
+body.touch .kf{font-size:10px;padding:2px 6px;margin-bottom:3px;}
+body.touch #vitals{left:14px;top:82px;bottom:auto;width:166px;padding:7px 9px;}
+body.touch .barwrap{margin-bottom:5px;}
+body.touch .barlabel{font-size:9px;letter-spacing:1px;margin-bottom:2px;}
+body.touch .bar{height:7px;}
+body.touch #hpNum{font-size:16px;}
+body.touch #weaponBox{right:270px;bottom:12px;width:auto;min-width:0;padding:6px 10px;}
+body.touch #wName{font-size:11px;letter-spacing:2px;}
+body.touch #wAmmo{font-size:26px;}
+body.touch #wAmmo small{font-size:13px;}
+body.touch #wMode{font-size:9px;letter-spacing:2px;}
+body.touch #reloadBar{margin-top:4px;height:3px;}
+body.touch #wheel{gap:4px;margin-top:6px;}
+body.touch .wslot{min-width:32px;padding:5px 6px;font-size:10px;white-space:nowrap;}
+body.touch #banner .b1{font-size:32px;letter-spacing:8px;}
+body.touch #banner .b2{font-size:11px;letter-spacing:5px;}
+body.touch #notice{bottom:auto;top:62%;font-size:12px;letter-spacing:2px;padding:5px 12px;}
+body.touch #crosshair{transform:translate(-50%,-50%) scale(.82);}
+
+@media (max-width:620px){
+  /* no room for the weapon strip next to the thumb zones - SWAP button covers it */
+  body.touch #wheel{display:none;}
+  body.touch #weaponBox{right:266px;bottom:10px;padding:4px 8px;}
+  body.touch #wAmmo{font-size:21px;}
+  body.touch #wName{font-size:10px;}
+  body.touch #killfeed{width:150px;}
+  body.touch #vitals{width:148px;}
+}
+
+/* ==========================================================================

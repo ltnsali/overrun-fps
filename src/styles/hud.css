@@ -1,0 +1,99 @@
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .35s;}
+#hud.on{opacity:1;}
+
+#crosshair{position:absolute;left:50%;top:50%;width:60px;height:60px;transform:translate(-50%,-50%);}
+#crosshair div{position:absolute;background:#eafcff;box-shadow:0 0 4px #000a;opacity:.9;}
+#ch-t,#ch-b{width:2px;height:9px;left:29px;}
+#ch-l,#ch-r{height:2px;width:9px;top:29px;}
+#ch-dot{width:2px;height:2px;left:29px;top:29px;border-radius:50%;background:var(--accent);}
+#hitmarker{position:absolute;left:50%;top:50%;width:34px;height:34px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;}
+#hitmarker div{position:absolute;background:#fff;}
+#hitmarker.kill div{background:var(--accent2);}
+#hm-t,#hm-b{width:2px;height:10px;left:16px;}
+#hm-l,#hm-r{height:2px;width:10px;top:16px;}
+#hm-t{top:0}#hm-b{bottom:0}#hm-l{left:0}#hm-r{right:0}
+
+#vignette{position:absolute;inset:0;box-shadow:inset 0 0 220px 40px #000c;pointer-events:none;}
+#damageFlash{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(255,20,40,.55) 100%);opacity:0;transition:opacity .28s;}
+#lowhp{position:absolute;inset:0;box-shadow:inset 0 0 160px 30px rgba(255,0,30,.55);opacity:0;}
+#scopeOverlay{position:absolute;inset:0;opacity:0;transition:opacity .12s;background:
+   radial-gradient(circle at center, transparent 0 28%, #000 30%);}
+#scopeOverlay .line{position:absolute;background:#000;}
+#scopeOverlay .h{left:0;right:0;height:1px;top:50%;}
+#scopeOverlay .v{top:0;bottom:0;width:1px;left:50%;}
+
+.panel{
+  position:absolute;background:linear-gradient(180deg,rgba(8,16,26,.72),rgba(6,11,18,.55));
+  border:1px solid rgba(57,215,255,.25); backdrop-filter:blur(3px);
+  box-shadow:0 0 24px rgba(0,0,0,.5), inset 0 0 20px rgba(57,215,255,.05);
+}
+.panel:before{content:'';position:absolute;left:-1px;top:-1px;width:10px;height:10px;border-left:2px solid var(--accent);border-top:2px solid var(--accent);}
+.panel:after{content:'';position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);}
+
+/* bottom-left vitals */
+#vitals{left:24px;bottom:24px;width:290px;padding:12px 14px;}
+.barwrap{margin-bottom:9px;}
+.barlabel{display:flex;justify-content:space-between;font-size:12px;letter-spacing:2px;opacity:.75;margin-bottom:3px;text-transform:uppercase;}
+.bar{height:11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);position:relative;overflow:hidden;}
+.bar i{position:absolute;inset:0;transform-origin:left;transition:transform .16s cubic-bezier(.2,.9,.3,1);}
+#hpFill{background:linear-gradient(90deg,#ff3b5c,#ff7a52);box-shadow:0 0 14px #ff3b5c88;}
+#arFill{background:linear-gradient(90deg,#39d7ff,#7ea6ff);box-shadow:0 0 14px #39d7ff88;}
+#stFill{background:linear-gradient(90deg,#57ff9a,#b6ff57);box-shadow:0 0 12px #57ff9a66;}
+#hpNum{font-size:30px;font-weight:700;line-height:1;}
+
+/* bottom-right weapon */
+#weaponBox{right:24px;bottom:24px;width:330px;padding:12px 16px;text-align:right;}
+#wName{font-size:17px;letter-spacing:3px;color:var(--accent);text-shadow:0 0 12px var(--accent);}
+#wAmmo{font-size:46px;font-weight:700;line-height:1;letter-spacing:2px;}
+#wAmmo small{font-size:20px;opacity:.6;font-weight:400;}
+#wMode{font-size:11px;letter-spacing:3px;opacity:.6;text-transform:uppercase;}
+#reloadBar{height:4px;background:rgba(255,255,255,.1);margin-top:7px;display:none;}
+#reloadBar i{display:block;height:100%;background:var(--warn);box-shadow:0 0 10px var(--warn);width:0%;}
+#wheel{display:flex;gap:5px;justify-content:flex-end;margin-top:9px;}
+.wslot{flex:1;padding:4px 0;font-size:10px;letter-spacing:1px;text-align:center;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);opacity:.45;}
+.wslot.sel{opacity:1;border-color:var(--accent);color:var(--accent);background:rgba(57,215,255,.12);box-shadow:0 0 12px rgba(57,215,255,.25);}
+.wslot.empty{color:#ff6b6b;border-color:#ff6b6b44;}
+
+/* top center wave */
+#waveBox{left:50%;top:20px;transform:translateX(-50%);padding:8px 26px;text-align:center;min-width:230px;}
+#waveTitle{font-size:12px;letter-spacing:5px;opacity:.7;}
+#waveNum{font-size:24px;font-weight:700;letter-spacing:3px;}
+#enemiesLeft{font-size:12px;letter-spacing:2px;color:var(--accent2);}
+
+/* top-left score */
+#scoreBox{left:24px;top:20px;padding:10px 16px;min-width:200px;}
+#score{font-size:26px;font-weight:700;letter-spacing:2px;color:var(--warn);text-shadow:0 0 14px #ffc24b66;}
+#scoreLbl,#comboLbl{font-size:11px;letter-spacing:3px;opacity:.65;}
+#combo{color:var(--accent2);font-weight:700;font-size:15px;letter-spacing:1px;}
+
+/* minimap */
+#mapBox{right:24px;top:20px;padding:8px;}
+#minimap{display:block;width:180px;height:180px;background:rgba(0,0,0,.35);}
+
+/* killfeed */
+#killfeed{position:absolute;right:24px;top:245px;width:300px;text-align:right;}
+.kf{font-size:13px;letter-spacing:1px;padding:3px 8px;margin-bottom:4px;background:rgba(6,12,20,.6);
+   border-right:2px solid var(--accent2);animation:kfIn .25s ease-out;}
+.kf b{color:var(--accent);}
+@keyframes kfIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+
+/* floating damage numbers */
+#dmgLayer{position:absolute;inset:0;overflow:hidden;}
+.dmg{position:absolute;font-weight:700;font-size:20px;text-shadow:0 2px 6px #000d;will-change:transform,opacity;}
+
+/* banner */
+#banner{position:absolute;left:50%;top:31%;transform:translate(-50%,-50%);text-align:center;opacity:0;}
+#banner .b1{font-size:56px;font-weight:700;letter-spacing:14px;color:#fff;text-shadow:0 0 30px var(--accent);}
+#banner .b2{font-size:16px;letter-spacing:8px;opacity:.8;margin-top:6px;}
+
+/* interact / notice */
+#notice{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);font-size:15px;letter-spacing:3px;
+   background:rgba(6,12,20,.7);padding:7px 18px;border:1px solid rgba(57,215,255,.3);opacity:0;transition:opacity .2s;}
+
+/* damage direction indicators */
+#dirLayer{position:absolute;left:50%;top:50%;width:0;height:0;}
+.dind{position:absolute;left:-14px;top:-160px;width:28px;height:56px;
+  background:radial-gradient(ellipse at bottom,rgba(255,40,60,.85),transparent 70%);
+  transform-origin:14px 160px;opacity:0;}

@@ -1,0 +1,61 @@
+   MULTIPLAYER / DEATHMATCH
+   ========================================================================== */
+#netStat{
+  position:absolute;left:50%;top:70px;transform:translateX(-50%);
+  font-size:10px;letter-spacing:3px;padding:3px 12px;text-transform:uppercase;
+  border:1px solid rgba(57,215,255,.3);background:rgba(6,12,20,.72);
+  opacity:0;transition:opacity .25s;white-space:nowrap;
+}
+#netStat.on{opacity:.92;}
+#netStat.bad{border-color:var(--accent2);color:#ff8a9c;}
+
+/* scoreboard */
+#board{
+  position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;
+  background:rgba(3,6,11,.74);
+}
+#board.on{display:flex;}
+#board .card{min-width:min(560px,92vw);}
+.brow{
+  display:grid;grid-template-columns:1fr 54px 54px 62px;gap:8px;padding:6px 10px;
+  font-size:13px;letter-spacing:2px;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.brow.head{font-size:10px;opacity:.55;letter-spacing:3px;border-bottom-color:rgba(57,215,255,.35);}
+.brow.me{background:rgba(57,215,255,.12);color:var(--accent);}
+.brow.out{opacity:.42;}
+.brow span+span{text-align:right;}
+.bdot{display:inline-block;width:8px;height:8px;margin-right:9px;border-radius:50%;vertical-align:middle;}
+
+/* respawn countdown */
+#respawn{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  flex-direction:column;background:rgba(70,5,14,.34);text-align:center;
+}
+#respawn.on{display:flex;}
+#respawnT{font-size:62px;font-weight:700;line-height:1;color:var(--accent2);text-shadow:0 0 26px #ff3b5c88;}
+#respawnBy{font-size:13px;letter-spacing:4px;opacity:.85;margin-top:12px;}
+
+/* lobby */
+.mpgrid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:4px 0 12px;}
+.mpopt{
+  padding:7px 15px;font-size:11px;letter-spacing:3px;text-transform:uppercase;cursor:pointer;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.03);opacity:.55;
+  touch-action:manipulation;
+}
+.mpopt.sel{opacity:1;border-color:var(--accent);color:var(--accent);background:rgba(57,215,255,.12);}
+.mpin{
+  font-family:inherit;font-size:15px;letter-spacing:4px;text-transform:uppercase;
+  color:#dff3ff;background:rgba(255,255,255,.05);border:1px solid rgba(57,215,255,.28);
+  padding:7px 10px;width:170px;text-align:center;outline:none;
+  user-select:text;-webkit-user-select:text;touch-action:manipulation;
+}
+.mpin:focus{border-color:var(--accent);box-shadow:0 0 12px rgba(57,215,255,.25);}
+.mphint{font-size:11px;letter-spacing:2px;opacity:.5;line-height:1.8;}
+.mperr{color:#ff6b6b;font-size:12px;letter-spacing:2px;min-height:18px;margin-top:6px;}
+#mpRoster{
+  margin:10px 0 4px;font-size:12px;letter-spacing:2px;min-height:22px;
+  display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+}
+#mpRoster b{font-weight:700;}
+
+#tScore{left:70px; top:14px; width:46px;height:46px;font-size:9px;display:none;}
