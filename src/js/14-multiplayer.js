@@ -636,7 +636,10 @@ function mpStartMatch(opts){
   MATCH.online = mpOnline();
   MATCH.fragLimit = opts.fragLimit;
   MATCH.timeLimit = opts.timeLimit;
-  MATCH.bots = MATCH.online ? 0 : opts.bots;   /* no shared authority for bots */
+  /* Bots run locally, so online they may only exist while you are alone in the
+     arena - otherwise every client would see a different set of them. One
+     sparring bot means an empty arena is still playable. */
+  MATCH.bots = MATCH.online ? 1 : opts.bots;
   MATCH.t = 0;
   MATCH.kills = 0; MATCH.deaths = 0;
   MATCH.respawnIn = 0; MATCH.killedBy = ''; MATCH.winner = '';
@@ -648,7 +651,7 @@ function mpStartMatch(opts){
   mpShowRespawn(false);
   UI.waveTitle.textContent = 'DEATHMATCH';
   mpHudScore();
-  if(MATCH.bots > 0) mpFillBots();
+  if(mpBotTarget() > 0) mpFillBots();
 }
 
 function mpEndMatch(){
@@ -689,12 +692,20 @@ function mpUpdate(dt){
     if(MATCH.respawnIn <= 0) mpRespawn();
   }
 
-  /* keep the arena stocked with bots in solo practice */
-  if(MATCH.bots > 0){
-    var alive = 0;
-    for(var i=0;i<ENEMIES.length;i++) if(!ENEMIES[i].dead) alive++;
+  /* Keep a sparring bot around while nobody else is here; stand them down the
+     moment a real player arrives, since only this client simulates them. */
+  var wantBots = mpBotTarget();
+  var botCount = 0, aliveBots = 0;
+  for(var i=0;i<ENEMIES.length;i++){
+    if(!ENEMIES[i].isBot) continue;
+    botCount++;
+    if(!ENEMIES[i].dead) aliveBots++;
+  }
+  if(wantBots === 0){
+    if(botCount > 0){ mpClearBots(); notice('PLAYER JOINED \u00B7 BOTS STAND DOWN'); }
+  } else {
     MATCH.botTimer -= dt;
-    if(alive < MATCH.bots && MATCH.botTimer <= 0){
+    if(aliveBots < wantBots && MATCH.botTimer <= 0){
       mpSpawnBot();
       MATCH.botTimer = 1.6;
     }
@@ -821,6 +832,20 @@ function mpSpawnBot(){
 function mpFillBots(){
   for(var i=0;i<MATCH.bots;i++) mpSpawnBot();
 }
+/* Bots are only sound while this client is the only player in the arena. */
+function mpBotTarget(){
+  for(var id in NET.peers) return 0;
+  return MATCH.bots;
+}
+function mpClearBots(){
+  for(var i=ENEMIES.length-1;i>=0;i--){
+    var e = ENEMIES[i];
+    if(!e.isBot) continue;
+    G.scene.remove(e.mesh);
+    disposeMesh(e.mesh);
+    ENEMIES.splice(i, 1);
+  }
+}
 
 /* ---- scoreboard --------------------------------------------------------- */
 
@@ -841,8 +866,7 @@ function mpBoard(){
       rows.push({id:'bot'+i, name:e.botName, col:e.def.col, kills:e.botKills||0,
                  deaths:e.botDeaths||0, alive:!e.dead, me:false, bot:true});
     }
-  }
-  rows.sort(function(a,b){ return (b.kills - a.kills) || (a.deaths - b.deaths); });
+  }  rows.sort(function(a,b){ return (b.kills - a.kills) || (a.deaths - b.deaths); });
   return rows;
 }
 

@@ -210,6 +210,86 @@ test.describe('deathmatch lobby', () => {
     await ctx.close();
   });
 
+  test('a lone player in an online arena still gets a sparring bot', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    await page.locator('#btnMulti').click();
+    await page.locator('#btnMpStart').click();
+    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+      timeout: 20_000
+    });
+
+    // Online, but nobody else is here - so there is somebody to fight.
+    expect(await page.evaluate(() => window.NET.kind)).toBe('local');
+    expect(await page.evaluate(() => Object.keys(window.NET.peers).length)).toBe(0);
+    await expect
+      .poll(() => page.evaluate(() => window.ENEMIES.filter((e) => e.isBot && !e.dead).length), {
+        timeout: 20_000
+      })
+      .toBe(1);
+
+    // Killing it scores a frag and it is replaced, so the arena is never empty.
+    await page.evaluate(() => {
+      const bot = window.ENEMIES.find((e) => e.isBot && !e.dead);
+      window.damageEnemy(bot, 99999, false, bot.pos.clone(), 'smg');
+    });
+    await expect.poll(() => page.evaluate(() => window.MATCH.kills)).toBe(1);
+    await expect
+      .poll(() => page.evaluate(() => window.ENEMIES.filter((e) => e.isBot && !e.dead).length), {
+        timeout: 20_000
+      })
+      .toBe(1);
+  });
+
+  test('bots stand down as soon as a real player joins', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const a = await ctx.newPage();
+    const b = await ctx.newPage();
+
+    for (const p of [a, b]) {
+      await useLocalThree(p);
+      await p.goto('/?touch=0&net=local');
+      await p.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
+        timeout: 45_000
+      });
+    }
+
+    await a.evaluate(() => {
+      document.getElementById('mpName').value = 'ALONE';
+      document.getElementById('btnMulti').click();
+      document.getElementById('btnMpStart').click();
+    });
+    await a.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on);
+    // Alone: a bot appears.
+    await expect
+      .poll(() => a.evaluate(() => window.ENEMIES.filter((e) => e.isBot && !e.dead).length), {
+        timeout: 20_000
+      })
+      .toBe(1);
+
+    await b.evaluate(() => {
+      document.getElementById('mpName').value = 'ARRIVAL';
+      document.getElementById('btnMulti').click();
+      document.getElementById('btnMpStart').click();
+    });
+    await b.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on);
+
+    // A real opponent showed up, so the locally simulated bots must go.
+    await expect.poll(() => a.evaluate(() => Object.keys(window.NET.peers).length), {
+      timeout: 15_000
+    }).toBe(1);
+    await expect
+      .poll(() => a.evaluate(() => window.ENEMIES.filter((e) => e.isBot).length), { timeout: 15_000 })
+      .toBe(0);
+    await expect
+      .poll(() => b.evaluate(() => window.ENEMIES.filter((e) => e.isBot).length), { timeout: 15_000 })
+      .toBe(0);
+
+    await ctx.close();
+  });
+
   test('solo practice runs a deathmatch with bots and no network', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0');
