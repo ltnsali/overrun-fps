@@ -28,7 +28,7 @@ var MATCH = {
 var NET = {
   kind:'off',            /* 'off' | 'local' | 'ws' | 'p2p' */
   id:'', name:'PLAYER', room:'ARENA',
-  status:'offline', err:'',
+  status:'offline', err:'', lastErr:'',
   sock:null, chan:null,
   peer:null, conns:[], isHost:false,   /* peer-to-peer */
   peers:{},              /* id -> remote player */
@@ -134,14 +134,24 @@ function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot
 
 /* Tell "this slot is dead" apart from "the signalling server is dead". Only the
    first is worth stepping over: if we cannot reach the server at all then every
-   remaining slot will fail exactly the same way, slowly, for nothing. */
+   remaining slot will fail exactly the same way, slowly, for nothing.
+   The peer error type is kept and shown, because "could not connect" is useless
+   when the cause is a blocked signalling host, a proxy, or WebRTC being off. */
 var _p2pDown = false;
 function mpP2PNoteErr(e){
   var t = e && e.type;
+  if(!t) return;
+  NET.lastErr = t;
+  if(t === 'browser-incompatible'){
+    _p2pDown = true;
+    NET.err = 'This browser has WebRTC disabled, so it cannot reach other players.';
+    return;
+  }
   if(t === 'network' || t === 'server-error' || t === 'socket-error' ||
      t === 'socket-closed' || t === 'ssl-unavailable'){
     _p2pDown = true;
-    NET.err = 'Could not reach the matchmaking server.';
+    NET.err = 'Could not reach the matchmaking server (' + t + ') \u2014 a firewall, ' +
+              'proxy or extension is most likely blocking it.';
   }
 }
 
@@ -159,6 +169,7 @@ function mpP2PConnect(onReady){
    for reasons that are gone a second later, so a failed pass is worth one retry. */
 function mpP2PAttempt(n, onReady){
   NET.err = '';
+  NET.lastErr = '';
   _p2pDown = false;
   mpP2PSlot(0, function(ok){
     if(ok || n + 1 >= MP_P2P_TRIES) return onReady(ok);
@@ -169,7 +180,8 @@ function mpP2PAttempt(n, onReady){
 
 function mpP2PSlot(slot, onReady){
   if(slot >= MP_P2P_SLOTS){
-    NET.err = NET.err || 'Could not reach the arena. Check your connection and try again.';
+    NET.err = NET.err || ('Could not reach the arena' +
+      (NET.lastErr ? ' (' + NET.lastErr + ')' : '') + '. Check your connection and try again.');
     return onReady(false);
   }
   mpP2PTryJoin(slot, function(joined){
