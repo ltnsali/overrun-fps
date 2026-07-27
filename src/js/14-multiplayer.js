@@ -239,14 +239,25 @@ function mpP2PSlot(slot, onReady, rejoins){
           mpP2PSlot(slot, onReady, rejoins + 1);
         }, MP_REJOIN_MS);
       }
+      /* 'unavailable-id' is proof that somebody owns this slot. If we still
+         cannot reach them, hosting a different slot of the same room would put
+         us in our own private arena while they sit in theirs - the exact split
+         this whole path exists to prevent. Say so instead, and let the player
+         try again: an honest error beats a silent lie. */
+      if(why === 'unavailable-id'){
+        mpTrace('slot ' + slot + ' is owned but unreachable - refusing to split');
+        NET.err = 'The arena host is not answering. Give it a moment and try again.';
+        return onReady(false);
+      }
       mpTrace('slot ' + slot + ' looks dead - stepping over');
       mpP2PSlot(slot + 1, onReady);
     });
-  });
+  }, rejoins > 0);   /* a retry means the claim proved somebody is on this slot */
 }
 
-/* Connect to whoever already owns this slot. */
-function mpP2PTryJoin(slot, cb){
+/* Connect to whoever already owns this slot. `patient` says we have proof that
+   somebody is on it, so we are prepared to wait a long time for them. */
+function mpP2PTryJoin(slot, cb, patient){
   var settled = false, peer, conn = null;
   try{ peer = new Peer(undefined, mpPeerOpts()); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
@@ -262,7 +273,11 @@ function mpP2PTryJoin(slot, cb){
      several seconds of ICE before the channel opens. One deadline for both meant
      walking straight past arenas that had already answered our offer, leaving two
      players hosting separate slots of the same room. So the deadline is short
-     until the host answers, and generous once we know somebody is really there. */
+     until the host answers, and generous once we know somebody is really there.
+
+     A host whose tab is in the background answers slowly enough to miss the short
+     deadline entirely, so once a failed claim has proved the slot is owned we
+     start out patient rather than waiting for an answer that we then extend for. */
   var t = setTimeout(function(){
     var pc = conn && conn.peerConnection;
     if(pc && pc.remoteDescription){
@@ -270,7 +285,7 @@ function mpP2PTryJoin(slot, cb){
       return;
     }
     fail();
-  }, MP_JOIN_MS);
+  }, patient ? MP_HANDSHAKE_MS : MP_JOIN_MS);
 
   peer.on('error', function(e){ mpP2PNoteErr(e); fail(); });
   peer.on('open', function(){

@@ -345,6 +345,46 @@ test.describe('deathmatch lobby', () => {
     expect(result.host, 'the slot was already owned, so we are a client').toBe(false);
   });
 
+  test('a host that is proven to be there is never abandoned for another slot', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          /* Observed live: the host had slot 0, and every claim came back
+             'unavailable-id' saying so - but its tab was in the background and it
+             answered too slowly for the short probe deadline, four times running.
+             The joiner then hosted slot 1, so one room became two arenas with a
+             bot each. A slot we have proof is occupied must never be stepped over. */
+          window.Peer = function (id) {
+            const on = {};
+            this.on = (k, f) => (on[k] = f);
+            this.destroy = () => {};
+            this.connect = () => {
+              const ch = {};
+              const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
+              setTimeout(() => {
+                conn.peerConnection.remoteDescription = { sdp: 'x' };
+                ch.open && ch.open();
+              }, 6000); // slower than the short deadline, well inside the patient one
+              return conn;
+            };
+            if (id) setTimeout(() => on.error && on.error({ type: 'unavailable-id' }), 10);
+            else setTimeout(() => on.open && on.open('anon'), 10);
+          };
+          window.NET.room = 'TEST';
+          window.mpP2PSlot(0, (ok) =>
+            resolve({ ok, slot: window.NET.slot, host: window.NET.isHost })
+          );
+        })
+    );
+    expect(result.ok, 'the joiner should get into the arena').toBe(true);
+    expect(result.slot, 'a slow host must not be traded for a private arena').toBe(0);
+    expect(result.host, 'somebody already hosts this room').toBe(false);
+  });
+
   test('?peer= redirects signalling to another server', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0&peer=' + encodeURIComponent('wss://sig.example.test:8443/rtc'));
