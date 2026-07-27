@@ -146,6 +146,42 @@ test.describe('deathmatch lobby', () => {
     expect(await page.evaluate(() => window.G.state)).toBe('menu');
   });
 
+  test('a player who cannot get online plays bots instead of hitting a dead end', async ({
+    page
+  }) => {
+    await useLocalThree(page);
+    // No peer-to-peer library means no way to reach the arena - the same dead end
+    // a signalling outage produces, but hermetic.
+    await page.route(/peerjs/i, (route) => route.abort());
+    await page.goto('/?touch=0&net=p2p');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    await page.locator('#btnMulti').click();
+    await page.locator('#btnMpStart').click();
+
+    // It must still start a playable match rather than parking on an error.
+    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+      timeout: 45_000
+    });
+    await nextFrame(page, 90);
+
+    const state = await page.evaluate(() => ({
+      kind: window.NET.kind,
+      online: window.MATCH.online,
+      bots: window.ENEMIES.filter((e) => e.isBot).length,
+      status: document.getElementById('netStat').textContent,
+      lobby: document.getElementById('mpErr').textContent
+    }));
+    expect(state.kind, 'the failed online attempt should land offline').toBe('off');
+    expect(state.online).toBe(false);
+    expect(state.bots, 'an offline arena needs bots to be worth playing').toBeGreaterThan(0);
+    // Loud, not silent: the player must know they are not online.
+    expect(state.status).toMatch(/offline/i);
+    expect(state.lobby, 'the lobby keeps the reason so retrying is obvious').toMatch(
+      /Enter Arena/i
+    );
+  });
+
   test('transport selection: derived relay, explicit override, forced local', async ({ page }) => {
     await useLocalThree(page);
 

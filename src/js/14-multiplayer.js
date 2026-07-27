@@ -126,9 +126,24 @@ window.addEventListener('pagehide', function(){
    lock everyone out of the arena, so we walk past any slot that is registered but
    dead. Joining is tried before claiming so players converge on a live host. */
 var MP_P2P_SLOTS = 3;
+var MP_P2P_TRIES = 2;
+var MP_RETRY_MS = 1200;
 var MP_JOIN_MS = 4000;
 var MP_CLAIM_MS = 5000;
 function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
+
+/* Tell "this slot is dead" apart from "the signalling server is dead". Only the
+   first is worth stepping over: if we cannot reach the server at all then every
+   remaining slot will fail exactly the same way, slowly, for nothing. */
+var _p2pDown = false;
+function mpP2PNoteErr(e){
+  var t = e && e.type;
+  if(t === 'network' || t === 'server-error' || t === 'socket-error' ||
+     t === 'socket-closed' || t === 'ssl-unavailable'){
+    _p2pDown = true;
+    NET.err = 'Could not reach the matchmaking server.';
+  }
+}
 
 function mpP2PConnect(onReady){
   mpLoadPeerJs(function(ok){
@@ -136,8 +151,19 @@ function mpP2PConnect(onReady){
       NET.err = 'Could not load the online networking library. Check your connection.';
       return onReady(false);
     }
-    NET.err = '';
-    mpP2PSlot(0, onReady);
+    mpP2PAttempt(0, onReady);
+  });
+}
+
+/* The public signalling server hiccups and rate-limits, and a whole pass can fail
+   for reasons that are gone a second later, so a failed pass is worth one retry. */
+function mpP2PAttempt(n, onReady){
+  NET.err = '';
+  _p2pDown = false;
+  mpP2PSlot(0, function(ok){
+    if(ok || n + 1 >= MP_P2P_TRIES) return onReady(ok);
+    mpRosterText('ARENA DID NOT ANSWER \u00B7 RETRYING\u2026');
+    setTimeout(function(){ mpP2PAttempt(n + 1, onReady); }, MP_RETRY_MS);
   });
 }
 
@@ -148,8 +174,10 @@ function mpP2PSlot(slot, onReady){
   }
   mpP2PTryJoin(slot, function(joined){
     if(joined) return onReady(true);
+    if(_p2pDown) return onReady(false);
     mpP2PTryClaim(slot, function(claimed){
       if(claimed) return onReady(true);
+      if(_p2pDown) return onReady(false);
       mpP2PSlot(slot + 1, onReady);   /* this slot is a ghost - step over it */
     });
   });
@@ -169,7 +197,7 @@ function mpP2PTryJoin(slot, cb){
   }
   var t = setTimeout(fail, MP_JOIN_MS);
 
-  peer.on('error', fail);
+  peer.on('error', function(e){ mpP2PNoteErr(e); fail(); });
   peer.on('open', function(){
     var conn;
     try{ conn = peer.connect(mpHostId(NET.room, slot), {reliable:false}); }
@@ -201,7 +229,7 @@ function mpP2PTryClaim(slot, cb){
   }
   var t = setTimeout(fail, MP_CLAIM_MS);
 
-  peer.on('error', fail);
+  peer.on('error', function(e){ mpP2PNoteErr(e); fail(); });
   peer.on('open', function(){
     if(settled) return;
     settled = true; clearTimeout(t);
@@ -982,11 +1010,23 @@ function mpGoOnlineP2P(room, name){
   mpRosterText('FINDING PLAYERS IN ' + room + '\u2026');
   mpConnect('p2p', room, name, function(ok){
     mpRosterText('');
-    if(!ok){
-      mpLobbyError((NET.err || 'Could not get online.') + ' Press Enter Arena to retry.');
-      return;
-    }
+    if(ok){ startGame('dm'); return; }
+    mpFallbackOffline(room, name, NET.err);
+  });
+}
+
+/* Online is out of reach - the signalling server is down, rate-limiting us, or
+   the network is blocking WebRTC. Refusing to start leaves the player staring at
+   an error with nothing to play, so open an offline arena against bots instead.
+   Loud, never silent: the HUD carries an offline badge and the reason waits in
+   the lobby, where pressing Enter Arena tries the network again. */
+function mpFallbackOffline(room, name, why){
+  var reason = why || 'Could not get online.';
+  mpConnect('off', room, name, function(){
     startGame('dm');
+    mpStatus('offline \u00B7 bots only \u00B7 re-enter the arena to retry', true);
+    notice('OFFLINE \u00B7 FIGHTING BOTS');
+    mpLobbyError(reason + ' Started an offline match against bots \u2014 press Enter Arena to try again.');
   });
 }
 
