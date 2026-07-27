@@ -102,7 +102,7 @@ function shootPeer(page) {
 }
 
 test.describe('deathmatch lobby', () => {
-  test('the menu offers deathmatch and the lobby collects match rules', async ({ page }) => {
+  test('the lobby asks for a callsign and nothing else', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0');
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
@@ -110,35 +110,40 @@ test.describe('deathmatch lobby', () => {
     await page.locator('#btnMulti').click();
     await expect(page.locator('#mp')).toHaveClass(/on/);
     await expect(page.locator('#mpName')).toBeVisible();
-    await expect(page.locator('#mpRoom')).toBeVisible();
 
-    await page.locator('#mpFrags .mpopt', { hasText: '10' }).click();
-    await page.locator('#mpTime .mpopt', { hasText: '3 MIN' }).click();
-    await page.locator('#mpBots .mpopt', { hasText: 'OFF' }).click();
-
+    // Every other knob is gone - defaults are applied silently.
+    for (const gone of ['#mpRoom', '#mpFrags', '#mpTime', '#mpBots']) {
+      expect(await page.locator(gone).count(), gone + ' should not exist').toBe(0);
+    }
     expect(await page.evaluate(() => window.MPOPT)).toEqual({
-      fragLimit: 10,
-      timeLimit: 180,
-      bots: 0
+      fragLimit: 20,
+      timeLimit: 300,
+      bots: 4
     });
+    // One button to play, and the arena comes from the URL.
+    await expect(page.locator('#btnMpStart')).toBeVisible();
+    expect(await page.evaluate(() => window.mpRoomFromUrl())).toBe('ARENA');
   });
 
-  test('an unreachable arena server falls back to the local arena', async ({ page }) => {
+  test('a shared ?room= link pins a private arena', async ({ page }) => {
     await useLocalThree(page);
-    // Port 1 is guaranteed to have nothing listening.
-    await page.goto('/?touch=0&relay=' + encodeURIComponent('ws://127.0.0.1:1'));
+    await page.goto('/?touch=0&room=squad7');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(await page.evaluate(() => window.mpRoomFromUrl())).toBe('SQUAD7');
+  });
+
+  test('an unreachable arena server reports it instead of going offline', async ({ page }) => {
+    await useLocalThree(page);
+    // Port 1 is guaranteed to have nothing listening. ?net=relay pins the transport
+    // so the test stays hermetic instead of cascading to peer-to-peer.
+    await page.goto('/?touch=0&net=relay&relay=' + encodeURIComponent('ws://127.0.0.1:1'));
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
 
     await page.locator('#btnMulti').click();
     await page.locator('#btnMpStart').click();
 
-    // The player must land in a playable match, not on a dead-end error.
-    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
-      timeout: 25_000
-    });
-    expect(await page.evaluate(() => window.NET.kind)).toBe('local');
-    await expect(page.locator('#notice')).toContainText(/LOCAL ARENA/i);
-    expect(await page.evaluate(() => document.getElementById('mpErr').textContent)).toBe('');
+    await expect(page.locator('#mpErr')).toContainText(/arena server/i, { timeout: 20_000 });
+    expect(await page.evaluate(() => window.G.state)).toBe('menu');
   });
 
   test('transport selection: derived relay, explicit override, forced local', async ({ page }) => {
@@ -154,7 +159,7 @@ test.describe('deathmatch lobby', () => {
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
     expect(await page.evaluate(() => window.mpRelayUrl())).toBe('ws://example.test:9999');
 
-    // ?net=local forces the cross-tab arena even when a relay could be reached.
+    // ?net=local pins the cross-tab arena even when a relay could be reached.
     await page.goto('/?touch=0&net=local');
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
     await page.locator('#btnMulti').click();
@@ -180,13 +185,11 @@ test.describe('deathmatch lobby', () => {
     }
     await a.evaluate(() => {
       document.getElementById('mpName').value = 'TABA';
-      document.getElementById('mpRoom').value = 'TABS';
       document.getElementById('btnMulti').click();
       document.getElementById('btnMpStart').click();
     });
     await b.evaluate(() => {
       document.getElementById('mpName').value = 'TABB';
-      document.getElementById('mpRoom').value = 'TABS';
       document.getElementById('btnMulti').click();
       document.getElementById('btnMpStart').click();
     });
@@ -213,7 +216,6 @@ test.describe('deathmatch lobby', () => {
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
 
     await page.locator('#btnMulti').click();
-    await page.locator('#mpBots .mpopt', { hasText: '4' }).click();
     await page.locator('#btnMpSolo').click();
 
     await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on);

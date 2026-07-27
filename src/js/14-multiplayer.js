@@ -26,10 +26,11 @@ var MATCH = {
 };
 
 var NET = {
-  kind:'off',            /* 'off' | 'local' | 'ws' */
+  kind:'off',            /* 'off' | 'local' | 'ws' | 'p2p' */
   id:'', name:'PLAYER', room:'ARENA',
   status:'offline', err:'',
   sock:null, chan:null,
+  peer:null, conns:[], isHost:false,   /* peer-to-peer */
   peers:{},              /* id -> remote player */
   acc:0
 };
@@ -79,7 +80,7 @@ function mpBuildSeededWorld(room){
 /* An explicit ?relay= always wins. Otherwise a relay can only be guessed for pages
    served over plain http (localhost / LAN dev): an https page is not allowed to open
    a ws:// socket, and a static host such as GitHub Pages has no relay behind it at
-   all. Returning null means "no server here" so the caller can use the local arena. */
+   all. Returning null means "no server here" so the caller can use peer-to-peer. */
 function mpRelayUrl(){
   try{
     var q = new URLSearchParams(location.search).get('relay');
@@ -87,6 +88,168 @@ function mpRelayUrl(){
   }catch(e){}
   if(location.protocol !== 'http:') return null;
   return 'ws://' + (location.hostname || '127.0.0.1') + ':8787';
+}
+
+/* ---- peer-to-peer: online play with no server of our own -----------------
+   WebRTC data channels in a star: whoever claims the room's well-known peer id
+   becomes the host and rebroadcasts everything it receives, which is exactly what
+   server/relay.js does. Only signalling touches a third party. */
+
+var MP_PEER_CDN = [
+  'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
+  'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'
+];
+var MP_HOST_PREFIX = 'overrun-v1-';
+function mpHostId(room){ return MP_HOST_PREFIX + room; }
+
+function mpLoadPeerJs(cb){
+  if(window.Peer) return cb(true);
+  var i = 0;
+  (function next(){
+    if(i >= MP_PEER_CDN.length) return cb(false);
+    var s = document.createElement('script');
+    s.src = MP_PEER_CDN[i++];
+    s.onload = function(){ cb(!!window.Peer); };
+    s.onerror = next;
+    document.head.appendChild(s);
+  })();
+}
+
+function mpP2PConnect(onReady){
+  mpLoadPeerJs(function(ok){
+    if(!ok){
+      NET.err = 'Could not load the online networking library. Check your connection.';
+      return onReady(false);
+    }
+    mpP2PClaimHost(onReady);
+  });
+}
+
+/* Try to own the room. Whoever gets there first hosts it. */
+function mpP2PClaimHost(onReady){
+  var settled = false;
+  var peer;
+  try{ peer = new Peer(mpHostId(NET.room), {debug:0}); }
+  catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
+
+  var giveUp = setTimeout(function(){
+    if(settled) return;
+    settled = true;
+    try{ peer.destroy(); }catch(e){}
+    NET.err = 'Could not reach the matchmaking service. Try again in a moment.';
+    if(onReady) onReady(false);
+  }, 12000);
+
+  peer.on('open', function(){
+    if(settled) return;
+    settled = true; clearTimeout(giveUp);
+    NET.peer = peer; NET.kind = 'p2p'; NET.isHost = true; NET.conns = [];
+    peer.on('connection', function(conn){ mpP2PAddConn(conn, true); });
+    peer.on('disconnected', function(){ try{ peer.reconnect(); }catch(e){} });
+    mpP2PStatus();
+    if(onReady) onReady(true);
+  });
+
+  peer.on('error', function(e){
+    var type = e && e.type;
+    if(!settled && type === 'unavailable-id'){
+      /* Someone already hosts this arena - join them instead. */
+      settled = true; clearTimeout(giveUp);
+      try{ peer.destroy(); }catch(e2){}
+      mpP2PJoinHost(onReady);
+      return;
+    }
+    if(settled) return;
+    settled = true; clearTimeout(giveUp);
+    try{ peer.destroy(); }catch(e2){}
+    NET.err = 'Online play failed to start (' + (type || 'unknown') + ').';
+    if(onReady) onReady(false);
+  });
+}
+
+function mpP2PJoinHost(onReady){
+  var settled = false;
+  var peer;
+  try{ peer = new Peer(undefined, {debug:0}); }
+  catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
+
+  var giveUp = setTimeout(function(){
+    if(settled) return;
+    settled = true;
+    try{ peer.destroy(); }catch(e){}
+    NET.err = 'Could not reach the arena host. Try again in a moment.';
+    if(onReady) onReady(false);
+  }, 12000);
+
+  peer.on('open', function(){
+    var conn = peer.connect(mpHostId(NET.room), {reliable:false});
+    conn.on('open', function(){
+      if(settled) return;
+      settled = true; clearTimeout(giveUp);
+      NET.peer = peer; NET.kind = 'p2p'; NET.isHost = false; NET.conns = [];
+      mpP2PAddConn(conn, false);
+      mpP2PStatus();
+      if(onReady) onReady(true);
+    });
+    conn.on('error', function(){});
+  });
+  peer.on('error', function(e){
+    if(settled) return;
+    settled = true; clearTimeout(giveUp);
+    try{ peer.destroy(); }catch(e2){}
+    /* The host vanished between our two attempts - take the room ourselves. */
+    if(e && e.type === 'peer-unavailable'){ mpP2PClaimHost(onReady); return; }
+    NET.err = 'Could not join the arena (' + ((e && e.type) || 'unknown') + ').';
+    if(onReady) onReady(false);
+  });
+}
+
+function mpP2PAddConn(conn, isIncoming){
+  NET.conns.push(conn);
+  conn.on('data', function(msg){
+    mpRecv(msg);
+    /* The host is the bus: pass every message on to the other players. */
+    if(NET.isHost) mpP2PRelay(msg, conn);
+  });
+  var drop = function(){
+    var i = NET.conns.indexOf(conn);
+    if(i >= 0) NET.conns.splice(i, 1);
+    mpP2PStatus();
+    /* Client lost the host: claim the arena so the match keeps going. */
+    if(!NET.isHost && NET.kind === 'p2p' && !isIncoming) mpP2PRehost();
+  };
+  conn.on('close', drop);
+  conn.on('error', drop);
+  mpP2PStatus();
+}
+
+function mpP2PRelay(msg, from){
+  for(var i=0;i<NET.conns.length;i++){
+    var c = NET.conns[i];
+    if(c === from || !c.open) continue;
+    try{ c.send(msg); }catch(e){}
+  }
+}
+
+var _rehostT = 0;
+function mpP2PRehost(){
+  if(_rehostT) return;
+  _rehostT = setTimeout(function(){
+    _rehostT = 0;
+    if(NET.kind !== 'p2p') return;
+    try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
+    NET.peer = null; NET.conns = [];
+    mpStatus('arena host lost \u00B7 reconnecting\u2026', true);
+    mpP2PClaimHost(function(ok){
+      if(!ok) mpStatus('arena connection lost', true);
+    });
+  }, 400 + Math.random()*900);
+}
+
+function mpP2PStatus(){
+  if(NET.kind !== 'p2p') return;
+  var n = NET.isHost ? NET.conns.length : Object.keys(NET.peers).length;
+  mpStatus('online \u00B7 arena ' + NET.room + (n ? ' \u00B7 ' + n + ' connected' : ' \u00B7 waiting for players'), false);
 }
 
 function mpConnect(kind, room, name, onReady){
@@ -117,6 +280,8 @@ function mpConnect(kind, room, name, onReady){
     }
     return;
   }
+
+  if(kind === 'p2p'){ mpP2PConnect(onReady); return; }
 
   var base = mpRelayUrl();
   if(!base){ NET.err = 'No arena server is reachable from this page.'; onReady(false); return; }
@@ -166,7 +331,10 @@ function mpConnect(kind, room, name, onReady){
 function mpDisconnect(){
   if(NET.sock){ try{ NET.sock.onclose = null; NET.sock.close(); }catch(e){} }
   if(NET.chan){ try{ NET.chan.close(); }catch(e){} }
-  NET.sock = null; NET.chan = null;
+  if(_rehostT){ clearTimeout(_rehostT); _rehostT = 0; }
+  for(var c=0;c<NET.conns.length;c++){ try{ NET.conns[c].close(); }catch(e){} }
+  if(NET.peer){ try{ NET.peer.destroy(); }catch(e){} }
+  NET.sock = null; NET.chan = null; NET.peer = null; NET.conns = []; NET.isHost = false;
   for(var id in NET.peers) mpDropPeer(id);
   NET.peers = {};
   NET.kind = 'off';
@@ -180,6 +348,13 @@ function mpRaw(obj){
     }
   } else if(NET.kind === 'local'){
     if(NET.chan){ try{ NET.chan.postMessage(obj); }catch(e){} }
+  } else if(NET.kind === 'p2p'){
+    /* Host fans out to everyone; a client only has the host to talk to. */
+    for(var i=0;i<NET.conns.length;i++){
+      var c = NET.conns[i];
+      if(!c.open) continue;
+      try{ c.send(obj); }catch(e){}
+    }
   }
 }
 function mpSend(t, m){
@@ -279,6 +454,7 @@ function mpDropPeer(id){
   }
   disposeMesh(rp.mesh);
   delete NET.peers[id];
+  mpP2PStatus();
 }
 
 /* ---- protocol ----------------------------------------------------------- */
@@ -292,6 +468,7 @@ function mpRecv(m){
     if(!rp){
       rp = NET.peers[m.id] = mpMakePeer(m.id, m.n);
       if(MATCH.on) notice(rp.name + ' JOINED');
+      mpP2PStatus();
     }
     rp.last = mpNow();
     rp.alive = m.al !== 0;
@@ -703,23 +880,21 @@ function mpShowRespawn(on){
 
 var MPOPT = {fragLimit:20, timeLimit:300, bots:4};
 
+/* The arena code is not a lobby field any more: everyone lands in the same arena
+   unless a shared link pins a private one with ?room=CODE. */
+function mpRoomFromUrl(){
+  try{
+    var q = new URLSearchParams(location.search).get('room');
+    if(q) return mpClean(q, 8) || 'ARENA';
+  }catch(e){}
+  return 'ARENA';
+}
+
 function mpBindOptions(){
-  [['mpFrags','fragLimit'],['mpTime','timeLimit'],['mpBots','bots']].forEach(function(pair){
-    var host = document.getElementById(pair[0]);
-    if(!host) return;
-    host.addEventListener('click', function(e){
-      var t = e.target;
-      if(!t || !t.classList.contains('mpopt')) return;
-      var kids = host.querySelectorAll('.mpopt');
-      for(var i=0;i<kids.length;i++) kids[i].classList.remove('sel');
-      t.classList.add('sel');
-      MPOPT[pair[1]] = parseInt(t.getAttribute('data-v'), 10);
-    });
-  });
   var name = document.getElementById('mpName');
   try{
     var saved = localStorage.getItem('overrun_name');
-    if(saved) name.value = saved;
+    if(saved && name) name.value = saved;
   }catch(e){}
 }
 
@@ -734,9 +909,8 @@ function mpRosterText(msg){
 
 function mpEnterArena(solo){
   var name = mpClean(document.getElementById('mpName').value, 12) || 'PLAYER';
-  var room = mpClean(document.getElementById('mpRoom').value, 8) || 'ARENA';
+  var room = mpRoomFromUrl();
   document.getElementById('mpName').value = name;
-  document.getElementById('mpRoom').value = room;
   try{ localStorage.setItem('overrun_name', name); }catch(e){}
   mpLobbyError('');
 
@@ -746,16 +920,39 @@ function mpEnterArena(solo){
     return;
   }
 
-  /* No server to talk to (static host, https page, file://)? The same-device arena
-     is still real multiplayer between tabs, so go straight there. */
-  var relay = mpRelayUrl();
-  if(!relay || mpLocalWanted()){ mpJoinLocalArena(room, name, !relay); return; }
+  /* ?net=local pins the cross-tab arena; ?net=relay / ?net=p2p pin one transport. */
+  var forced = mpNetOverride();
+  if(forced === 'local'){ mpJoinLocalArena(room, name, false); return; }
 
-  mpRosterText('CONNECTING TO ARENA ' + room + '\u2026');
-  mpConnect('ws', room, name, function(ok){
-    if(ok){ mpRosterText(''); startGame('dm'); return; }
-    /* Never dead-end the player on a missing server - drop to the local arena. */
-    mpJoinLocalArena(room, name, true);
+  /* A self-hosted relay wins when one is configured, otherwise go peer-to-peer.
+     Either way the player ends up online - never silently offline. */
+  var relay = mpRelayUrl();
+  if(forced !== 'p2p' && relay){
+    mpRosterText('CONNECTING TO ' + room + '\u2026');
+    mpConnect('ws', room, name, function(ok){
+      if(ok){ mpRosterText(''); startGame('dm'); return; }
+      if(forced === 'relay'){
+        mpRosterText('');
+        mpLobbyError(NET.err || 'Could not reach the arena server.');
+        return;
+      }
+      mpGoOnlineP2P(room, name);
+    });
+    return;
+  }
+  if(forced === 'relay'){ mpLobbyError('No arena server is configured for this page.'); return; }
+  mpGoOnlineP2P(room, name);
+}
+
+function mpGoOnlineP2P(room, name){
+  mpRosterText('FINDING PLAYERS IN ' + room + '\u2026');
+  mpConnect('p2p', room, name, function(ok){
+    mpRosterText('');
+    if(!ok){
+      mpLobbyError((NET.err || 'Could not get online.') + ' You can still play Solo vs Bots.');
+      return;
+    }
+    startGame('dm');
   });
 }
 
@@ -768,8 +965,9 @@ function mpJoinLocalArena(room, name, explain){
     if(explain) notice('LOCAL ARENA \u00B7 OPEN A SECOND TAB WITH CODE ' + room);
   });
 }
-/* ?net=local forces the cross-tab arena even when a relay is available. */
-function mpLocalWanted(){
-  try{ return new URLSearchParams(location.search).get('net') === 'local'; }
-  catch(e){ return false; }
+/* ?net=local|relay|p2p pins the transport, for testing and debugging. */
+function mpNetOverride(){
+  try{ return new URLSearchParams(location.search).get('net'); }
+  catch(e){ return null; }
 }
+function mpLocalWanted(){ return mpNetOverride() === 'local'; }

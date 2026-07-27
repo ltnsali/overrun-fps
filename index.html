@@ -125,40 +125,14 @@
 
 <!-- ================= MULTIPLAYER LOBBY ================= -->
 <div id="mp" class="screen">
-  <div class="card fade" style="text-align:center;min-width:min(520px,94vw)">
+  <div class="card fade" style="text-align:center;min-width:min(420px,94vw)">
     <h2>DEATHMATCH</h2>
-
-    <div class="mphint" style="margin-bottom:4px">CALLSIGN</div>
+    <div class="mphint" style="margin-bottom:6px">CALLSIGN</div>
     <input id="mpName" class="mpin" maxlength="12" autocomplete="off" spellcheck="false" value="PLAYER" />
-
-    <div class="mphint" style="margin:14px 0 4px">ARENA CODE &mdash; SHARE IT TO PLAY TOGETHER</div>
-    <input id="mpRoom" class="mpin" maxlength="8" autocomplete="off" spellcheck="false" value="ARENA" />
-
-    <div class="mphint" style="margin:16px 0 4px">FRAG LIMIT</div>
-    <div class="mpgrid" id="mpFrags">
-      <div class="mpopt" data-v="10">10</div>
-      <div class="mpopt sel" data-v="20">20</div>
-      <div class="mpopt" data-v="30">30</div>
-      <div class="mpopt" data-v="50">50</div>
-    </div>
-
-    <div class="mphint" style="margin:2px 0 4px">MATCH LENGTH</div>
-    <div class="mpgrid" id="mpTime">
-      <div class="mpopt" data-v="180">3 MIN</div>
-      <div class="mpopt sel" data-v="300">5 MIN</div>
-      <div class="mpopt" data-v="600">10 MIN</div>
-    </div>
-
-    <div class="mphint" style="margin:2px 0 4px">BOTS &mdash; SOLO PRACTICE ONLY</div>
-    <div class="mpgrid" id="mpBots">
-      <div class="mpopt" data-v="0">OFF</div>
-      <div class="mpopt sel" data-v="4">4</div>
-      <div class="mpopt" data-v="8">8</div>
-    </div>
-
     <div id="mpRoster"></div>
     <div id="mpErr" class="mperr"></div>
-    <div class="mphint">NO SERVER NEEDED &mdash; OPEN THIS PAGE IN A SECOND TAB WITH THE SAME CODE<br />AND BOTH TABS FIGHT IN THE SAME ARENA</div>
+    <div class="mphint">FIRST TO 20 FRAGS &middot; 5 MINUTES<br />
+      EVERYONE WHO ENTERS MEETS IN THE SAME ARENA</div>
   </div>
   <div class="btn" id="btnMpStart" style="margin-top:16px">Enter Arena</div>
   <div class="btn" id="btnMpSolo">Solo vs Bots</div>
