@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#05070c" />
 <title>OVERRUN &mdash; Advanced FPS</title>
 <style>
   :root{
@@ -13,11 +17,16 @@
     --bg:#05070c;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+  html,body{
+    width:100%;height:100%;overflow:hidden;background:var(--bg);
+    overscroll-behavior:none; touch-action:none; -webkit-text-size-adjust:100%;
+  }
   body{
     font-family:"Rajdhani","Segoe UI",Tahoma,sans-serif;
     color:#dff3ff; cursor:default; user-select:none;
     -webkit-user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
   }
   canvas{display:block;}
   #app{position:fixed;inset:0;}
@@ -156,6 +165,126 @@
   .fade{animation:fadein .4s ease-out;}
   @keyframes fadein{from{opacity:0}to{opacity:1}}
   .err{color:#ff6b6b;max-width:600px;text-align:center;line-height:1.7;letter-spacing:1px;font-size:13px;}
+
+  /* ==========================================================================
+     TOUCH / MOBILE
+     ========================================================================== */
+  .screen{touch-action:pan-y;-webkit-overflow-scrolling:touch;}
+  .btn,.row input,.wslot{touch-action:manipulation;}
+
+  /* ---- on-screen controls layer ---- */
+  #touchUI{
+    position:fixed;inset:0;z-index:15;display:none;pointer-events:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right)
+            env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #touchUI.on{display:block;}
+
+  #tStick{
+    position:fixed;width:132px;height:132px;margin:-66px 0 0 -66px;border-radius:50%;
+    border:1px solid rgba(57,215,255,.28);background:rgba(8,16,26,.26);opacity:.38;
+    transition:opacity .12s,border-color .12s,box-shadow .12s;
+  }
+  #tStick.on{opacity:.95;}
+  #tStick.sprint{border-color:var(--good);box-shadow:0 0 22px rgba(87,255,154,.3);}
+  #tKnob{
+    position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+    background:rgba(57,215,255,.26);border:1px solid rgba(57,215,255,.7);
+    box-shadow:0 0 16px rgba(57,215,255,.28);
+  }
+  #tStick.sprint #tKnob{background:rgba(87,255,154,.26);border-color:var(--good);}
+
+  .tbtn{
+    position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
+    border-radius:50%;border:1px solid rgba(57,215,255,.35);background:rgba(8,16,26,.42);
+    color:#cfeaff;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1.15;
+    text-transform:uppercase;text-align:center;backdrop-filter:blur(2px);
+    transition:background .07s,border-color .07s,transform .07s;
+  }
+  .tbtn.act{background:rgba(57,215,255,.32);border-color:var(--accent);color:#fff;transform:scale(.93);}
+
+  #tFire{right:20px;bottom:20px;width:96px;height:96px;font-size:13px;
+    border-color:rgba(255,59,92,.45);background:rgba(40,8,14,.42);}
+  #tFire.act{background:rgba(255,59,92,.34);border-color:var(--accent2);}
+  #tAds   {right:128px;bottom:28px; width:66px;height:66px;}
+  #tMelee {right:206px;bottom:22px; width:54px;height:54px;font-size:10px;}
+  #tJump  {right:34px; bottom:126px;width:66px;height:66px;}
+  #tReload{right:126px;bottom:106px;width:62px;height:62px;font-size:10px;}
+  #tNade  {right:206px;bottom:88px; width:54px;height:54px;font-size:10px;}
+  #tSwap  {right:206px;bottom:154px;width:54px;height:54px;font-size:10px;}
+  #tCrouch{left:18px;  bottom:18px; width:58px;height:58px;font-size:10px;}
+  #tPause {left:14px;  top:14px;    width:46px;height:46px;font-size:16px;}
+
+  /* ---- rotate-to-landscape gate ---- */
+  #rotate{
+    position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    flex-direction:column;background:var(--bg);text-align:center;padding:30px;
+  }
+  body.touch.portrait #rotate{display:flex;}
+  #rotate .phone{
+    width:56px;height:92px;border:3px solid var(--accent);border-radius:9px;margin-bottom:24px;
+    box-shadow:0 0 26px rgba(57,215,255,.35);animation:tilt 1.8s ease-in-out infinite;
+  }
+  @keyframes tilt{0%,35%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+  #rotate p{letter-spacing:6px;font-size:14px;opacity:.85;}
+  #rotate small{display:block;margin-top:10px;letter-spacing:2px;font-size:11px;opacity:.45;}
+
+  /* ---- compact HUD for touch devices ---- */
+  body.touch #scoreBox{left:68px;top:10px;padding:6px 12px;min-width:126px;}
+  body.touch #score{font-size:18px;}
+  body.touch #scoreLbl,body.touch #comboLbl{font-size:9px;letter-spacing:2px;}
+  body.touch #combo{font-size:12px;}
+  body.touch #waveBox{top:10px;padding:5px 16px;min-width:148px;}
+  body.touch #waveTitle{font-size:9px;letter-spacing:3px;}
+  body.touch #waveNum{font-size:17px;letter-spacing:2px;}
+  body.touch #enemiesLeft{font-size:9px;}
+  body.touch #mapBox{right:14px;top:10px;padding:5px;}
+  body.touch #minimap{width:102px;height:102px;}
+  body.touch #killfeed{right:14px;top:128px;width:184px;}
+  body.touch .kf{font-size:10px;padding:2px 6px;margin-bottom:3px;}
+  body.touch #vitals{left:14px;top:82px;bottom:auto;width:166px;padding:7px 9px;}
+  body.touch .barwrap{margin-bottom:5px;}
+  body.touch .barlabel{font-size:9px;letter-spacing:1px;margin-bottom:2px;}
+  body.touch .bar{height:7px;}
+  body.touch #hpNum{font-size:16px;}
+  body.touch #weaponBox{right:270px;bottom:12px;width:auto;min-width:0;padding:6px 10px;}
+  body.touch #wName{font-size:11px;letter-spacing:2px;}
+  body.touch #wAmmo{font-size:26px;}
+  body.touch #wAmmo small{font-size:13px;}
+  body.touch #wMode{font-size:9px;letter-spacing:2px;}
+  body.touch #reloadBar{margin-top:4px;height:3px;}
+  body.touch #wheel{gap:4px;margin-top:6px;}
+  body.touch .wslot{min-width:32px;padding:5px 6px;font-size:10px;white-space:nowrap;}
+  body.touch #banner .b1{font-size:32px;letter-spacing:8px;}
+  body.touch #banner .b2{font-size:11px;letter-spacing:5px;}
+  body.touch #notice{bottom:auto;top:62%;font-size:12px;letter-spacing:2px;padding:5px 12px;}
+  body.touch #crosshair{transform:translate(-50%,-50%) scale(.82);}
+
+  @media (max-width:620px){
+    /* no room for the weapon strip next to the thumb zones - SWAP button covers it */
+    body.touch #wheel{display:none;}
+    body.touch #weaponBox{right:266px;bottom:10px;padding:4px 8px;}
+    body.touch #wAmmo{font-size:21px;}
+    body.touch #wName{font-size:10px;}
+    body.touch #killfeed{width:150px;}
+    body.touch #vitals{width:148px;}
+  }
+
+  /* ---- short viewports (landscape phones) ---- */
+  @media (max-height:520px){
+    .screen{justify-content:flex-start;overflow-y:auto;padding:16px 0;}
+    h1.logo{font-size:40px;letter-spacing:12px;}
+    .sub{font-size:10px;letter-spacing:5px;margin-bottom:14px;}
+    .btn{min-width:250px;padding:10px 18px;font-size:13px;letter-spacing:3px;margin:4px;}
+    h2{font-size:19px;letter-spacing:5px;margin-bottom:9px;}
+    .card{padding:16px 20px;max-width:92vw;}
+    .keys{font-size:11px;gap:5px 20px;}
+    .keys div{padding-bottom:2px;}
+    .stats{margin:10px 0;gap:9px;}
+    .stats div b{font-size:21px;}
+    .row{margin:7px 0;font-size:12px;}
+    .row label{width:132px;}
+  }
 </style>
 </head>
 <body>
@@ -219,6 +348,26 @@
   <div id="notice"></div>
 </div>
 
+<!-- ================= TOUCH CONTROLS ================= -->
+<div id="touchUI">
+  <div id="tStick"><div id="tKnob"></div></div>
+  <div class="tbtn" id="tFire">FIRE</div>
+  <div class="tbtn" id="tAds">AIM</div>
+  <div class="tbtn" id="tMelee">BASH</div>
+  <div class="tbtn" id="tJump">JUMP</div>
+  <div class="tbtn" id="tReload">RELOAD</div>
+  <div class="tbtn" id="tNade">FRAG</div>
+  <div class="tbtn" id="tSwap">SWAP</div>
+  <div class="tbtn" id="tCrouch">CROUCH</div>
+  <div class="tbtn" id="tPause">II</div>
+</div>
+
+<div id="rotate">
+  <div class="phone"></div>
+  <p>ROTATE YOUR DEVICE</p>
+  <small>OVERRUN IS PLAYED IN LANDSCAPE</small>
+</div>
+
 <!-- ================= SCREENS ================= -->
 <div id="menu" class="screen">
   <h1 class="logo">OVERRUN</h1>
@@ -226,13 +375,13 @@
   <div class="btn" id="btnPlay">Deploy</div>
   <div class="btn" id="btnHelp">Controls</div>
   <div class="btn" id="btnOpts">Settings</div>
-  <div style="margin-top:22px;font-size:11px;letter-spacing:4px;opacity:.35">CLICK TO LOCK MOUSE &middot; ESC TO PAUSE</div>
+  <div id="menuHint" style="margin-top:22px;font-size:11px;letter-spacing:4px;opacity:.35">CLICK TO LOCK MOUSE &middot; ESC TO PAUSE</div>
 </div>
 
 <div id="help" class="screen">
   <div class="card fade">
     <h2>CONTROLS</h2>
-    <div class="keys">
+    <div class="keys" id="keysDesktop">
       <div><span>W A S D</span><span>Move</span></div>
       <div><span>MOUSE</span><span>Look</span></div>
       <div><span>SHIFT</span><span>Sprint</span></div>
@@ -248,6 +397,18 @@
       <div><span>E</span><span>Use / pick up</span></div>
       <div><span>ESC</span><span>Pause</span></div>
     </div>
+    <div class="keys" id="keysTouch" style="display:none">
+      <div><span>LEFT STICK</span><span>Move</span></div>
+      <div><span>DRAG RIGHT</span><span>Look</span></div>
+      <div><span>PUSH STICK FULL</span><span>Sprint</span></div>
+      <div><span>FIRE</span><span>Hold to shoot</span></div>
+      <div><span>AIM</span><span>Tap to toggle ADS</span></div>
+      <div><span>JUMP / CROUCH</span><span>Crouch is a toggle</span></div>
+      <div><span>RELOAD / BASH</span><span>Reload &amp; melee</span></div>
+      <div><span>FRAG</span><span>Throw grenade</span></div>
+      <div><span>SWAP</span><span>Next weapon</span></div>
+      <div><span>II BUTTON</span><span>Pause</span></div>
+    </div>
     <div style="margin-top:16px;font-size:13px;opacity:.7;line-height:1.7">
       Survive endless waves. Headshots deal bonus damage and build your combo multiplier.
       Chain kills fast to keep the multiplier alive. Every 5th wave spawns a <b style="color:var(--accent2)">BOSS</b>.
@@ -260,7 +421,7 @@
 <div id="opts" class="screen">
   <div class="card fade" style="min-width:520px">
     <h2>SETTINGS</h2>
-    <div class="row"><label>Mouse Sensitivity</label><input id="optSens" type="range" min="0.2" max="4" step="0.05" value="1"><output id="outSens">1.00</output></div>
+    <div class="row"><label>Look Sensitivity</label><input id="optSens" type="range" min="0.2" max="4" step="0.05" value="1"><output id="outSens">1.00</output></div>
     <div class="row"><label>Field of View</label><input id="optFov" type="range" min="65" max="110" step="1" value="82"><output id="outFov">82</output></div>
     <div class="row"><label>Master Volume</label><input id="optVol" type="range" min="0" max="1" step="0.02" value="0.6"><output id="outVol">60%</output></div>
     <div class="row"><label>Shadows</label><input id="optShadow" type="checkbox" checked></div>
@@ -355,6 +516,22 @@ var G = {
 var SET = {
   sens: 1.0, fov: 82, vol: 0.6, shadows:true, shake:true, blood:true, res:1, diff:1
 };
+
+/* Touch device? Coarse pointer + touch events. ?touch=1 forces it on for testing. */
+var IS_TOUCH = (function(){
+  try{
+    if(location.search.indexOf('touch=1') >= 0) return true;
+    if(location.search.indexOf('touch=0') >= 0) return false;
+    var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    var coarse = window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
+    return !!(hasTouch && coarse);
+  }catch(e){ return false; }
+})();
+/* Mobile GPUs choke above ~1.5x device pixel ratio. */
+function pixelCap(){ return IS_TOUCH ? 1.5 : 2; }
+/* Screen-pixels -> look-delta multiplier so a swipe turns a sensible amount. */
+var TOUCH_LOOK = 2.0;
+
 var DIFF_NAMES = ['RECRUIT','NORMAL','VETERAN','NIGHTMARE'];
 var DIFF = [
   {hp:0.70, dmg:0.50, speed:0.90, count:0.75, ammo:1.35},
@@ -551,6 +728,8 @@ var AUD = {
 var IN = {
   keys:{}, mouse:{x:0,y:0}, down:{}, locked:false, wheel:0,
   pressed:{},
+  axis:{x:0,y:0},          // analog move from the virtual stick (-1..1)
+  sprint:false,            // analog sprint request from the virtual stick
   isDown:function(c){ return !!this.keys[c]; },
   hit:function(c){ if(this.pressed[c]){ this.pressed[c]=false; return true; } return false; },
   clearFrame:function(){ this.mouse.x=0; this.mouse.y=0; this.wheel=0; this.pressed={}; }
@@ -563,24 +742,212 @@ function initInput(){
     if(e.code === 'Escape'){ /* handled by pointerlockchange */ }
   });
   window.addEventListener('keyup', function(e){ IN.keys[e.code] = false; });
-  window.addEventListener('blur', function(){ IN.keys = {}; IN.down = {}; });
+  window.addEventListener('blur', function(){
+    IN.keys = {}; IN.down = {}; IN.axis.x = 0; IN.axis.y = 0; IN.sprint = false;
+  });
+  /* Touch devices fire synthetic mouse events; the touch layer owns input there. */
   document.addEventListener('mousemove', function(e){
-    if(!IN.locked) return;
+    if(!IN.locked || IS_TOUCH) return;
     IN.mouse.x += e.movementX || 0;
     IN.mouse.y += e.movementY || 0;
   });
-  document.addEventListener('mousedown', function(e){ if(IN.locked){ IN.down[e.button]=true; e.preventDefault(); } });
-  document.addEventListener('mouseup', function(e){ IN.down[e.button]=false; });
+  document.addEventListener('mousedown', function(e){ if(IN.locked && !IS_TOUCH){ IN.down[e.button]=true; e.preventDefault(); } });
+  document.addEventListener('mouseup', function(e){ if(!IS_TOUCH) IN.down[e.button]=false; });
   document.addEventListener('contextmenu', function(e){ if(IN.locked) e.preventDefault(); });
   document.addEventListener('wheel', function(e){ if(IN.locked){ IN.wheel += Math.sign(e.deltaY); e.preventDefault(); } }, {passive:false});
   document.addEventListener('pointerlockchange', function(){
+    if(IS_TOUCH) return;
     IN.locked = (document.pointerLockElement === G.renderer.domElement);
     if(!IN.locked && G.state==='playing') pauseGame();
   });
 }
 function requestLock(){
+  /* No Pointer Lock API on mobile: treat the game as "locked" so combat input flows. */
+  if(IS_TOUCH){ IN.locked = true; return; }
   var el = G.renderer.domElement;
   if(el.requestPointerLock) el.requestPointerLock();
+}
+
+/* ---------------------------------------------------------------------------
+   3b. TOUCH CONTROLS (virtual stick + look drag + on-screen buttons)
+--------------------------------------------------------------------------- */
+var STICK_R = 58, STICK_DZ = 9;
+var TOUCH = { moveId:null, lookId:null, ox:0, oy:0, lx:0, ly:0, homeX:0, homeY:0, stick:null, knob:null };
+
+function placeStick(ox, oy, kx, ky){
+  if(!TOUCH.stick) return;
+  TOUCH.stick.style.left = ox + 'px';
+  TOUCH.stick.style.top  = oy + 'px';
+  TOUCH.knob.style.transform = 'translate(' + kx + 'px,' + ky + 'px)';
+}
+function touchHome(){
+  TOUCH.homeX = Math.round(window.innerWidth * 0.15);
+  TOUCH.homeY = Math.round(window.innerHeight - Math.min(150, window.innerHeight * 0.36));
+  if(TOUCH.moveId === null) placeStick(TOUCH.homeX, TOUCH.homeY, 0, 0);
+}
+function releaseStick(){
+  TOUCH.moveId = null;
+  IN.axis.x = 0; IN.axis.y = 0; IN.sprint = false;
+  if(TOUCH.stick) TOUCH.stick.classList.remove('on','sprint');
+  placeStick(TOUCH.homeX, TOUCH.homeY, 0, 0);
+}
+function driveStick(t){
+  var dx = t.clientX - TOUCH.ox, dy = t.clientY - TOUCH.oy;
+  var d = Math.hypot(dx, dy);
+  var kx = dx, ky = dy;
+  if(d > STICK_R){ kx = dx * STICK_R/d; ky = dy * STICK_R/d; }
+  placeStick(TOUCH.ox, TOUCH.oy, kx, ky);
+  if(d <= STICK_DZ){
+    IN.axis.x = 0; IN.axis.y = 0; IN.sprint = false;
+    TOUCH.stick.classList.remove('sprint');
+    return;
+  }
+  var m = clamp((d - STICK_DZ) / (STICK_R - STICK_DZ), 0, 1);
+  IN.axis.x = (dx/d) * m;
+  IN.axis.y = -(dy/d) * m;                 // screen-up = forward
+  IN.sprint = IN.axis.y > 0.82;            // shove the stick forward to sprint
+  TOUCH.stick.classList.toggle('sprint', IN.sprint);
+}
+
+function onTouchStart(e){
+  if(G.state !== 'playing') return;
+  var w = window.innerWidth;
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t = e.changedTouches[i];
+    if(t.clientX < w*0.45 && TOUCH.moveId === null){
+      TOUCH.moveId = t.identifier;
+      TOUCH.ox = t.clientX; TOUCH.oy = t.clientY;
+      TOUCH.stick.classList.add('on');
+      placeStick(TOUCH.ox, TOUCH.oy, 0, 0);
+    } else if(TOUCH.lookId === null){
+      TOUCH.lookId = t.identifier;
+      TOUCH.lx = t.clientX; TOUCH.ly = t.clientY;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchMove(e){
+  if(G.state !== 'playing') return;
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t = e.changedTouches[i];
+    if(t.identifier === TOUCH.moveId){
+      driveStick(t);
+    } else if(t.identifier === TOUCH.lookId){
+      IN.mouse.x += (t.clientX - TOUCH.lx) * TOUCH_LOOK;
+      IN.mouse.y += (t.clientY - TOUCH.ly) * TOUCH_LOOK;
+      TOUCH.lx = t.clientX; TOUCH.ly = t.clientY;
+    }
+  }
+  e.preventDefault();
+}
+function onTouchEnd(e){
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t = e.changedTouches[i];
+    if(t.identifier === TOUCH.moveId) releaseStick();
+    else if(t.identifier === TOUCH.lookId) TOUCH.lookId = null;
+  }
+}
+
+function bindHold(id, onDown, onUp){
+  var el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('touchstart', function(e){
+    e.preventDefault(); e.stopPropagation();
+    el.classList.add('act'); if(onDown) onDown();
+  }, {passive:false});
+  function up(e){
+    e.preventDefault(); e.stopPropagation();
+    el.classList.remove('act'); if(onUp) onUp();
+  }
+  el.addEventListener('touchend', up, {passive:false});
+  el.addEventListener('touchcancel', up, {passive:false});
+}
+function bindToggle(id, fn){
+  var el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('touchstart', function(e){
+    e.preventDefault(); e.stopPropagation();
+    var on = !el.classList.contains('act');
+    el.classList.toggle('act', on);
+    fn(on);
+  }, {passive:false});
+  el.addEventListener('touchend', function(e){ e.preventDefault(); e.stopPropagation(); }, {passive:false});
+}
+
+function resetTouchState(){
+  IN.down[0] = false; IN.down[2] = false;
+  IN.keys = {}; IN.pressed = {};
+  releaseStick();
+  TOUCH.lookId = null;
+  ['tFire','tAds','tCrouch','tJump','tReload','tMelee','tNade','tSwap'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.classList.remove('act');
+  });
+}
+function setTouchUI(on){
+  if(!IS_TOUCH) return;
+  var el = document.getElementById('touchUI');
+  if(el) el.classList.toggle('on', !!on);
+  resetTouchState();
+}
+function updateOrientation(){
+  if(!IS_TOUCH) return;
+  var portrait = window.innerHeight > window.innerWidth;
+  document.body.classList.toggle('portrait', portrait);
+  if(portrait && G.state === 'playing') pauseGame();
+}
+function goFullscreen(){
+  if(!IS_TOUCH) return;
+  var el = document.documentElement;
+  try{
+    if(!document.fullscreenElement && !document.webkitFullscreenElement){
+      var p = el.requestFullscreen ? el.requestFullscreen({navigationUI:'hide'})
+            : (el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null);
+      if(p && p.catch) p.catch(function(){});
+    }
+  }catch(e){}
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      var q = screen.orientation.lock('landscape');
+      if(q && q.catch) q.catch(function(){});
+    }
+  }catch(e){}
+}
+
+function initTouch(){
+  if(!IS_TOUCH) return;
+  document.body.classList.add('touch');
+  TOUCH.stick = document.getElementById('tStick');
+  TOUCH.knob  = document.getElementById('tKnob');
+  touchHome();
+
+  bindHold('tFire',   function(){ IN.down[0] = true; },  function(){ IN.down[0] = false; });
+  bindHold('tJump',   function(){ IN.keys['Space'] = true; IN.pressed['Space'] = true; },
+                      function(){ IN.keys['Space'] = false; });
+  bindHold('tReload', function(){ IN.pressed['KeyR'] = true; });
+  bindHold('tMelee',  function(){ IN.pressed['KeyF'] = true; });
+  bindHold('tNade',   function(){ IN.pressed['KeyG'] = true; });
+  bindHold('tSwap',   function(){ switchWeapon((PL.wi + 1) % PL.weapons.length); });
+  bindHold('tPause',  function(){ pauseGame(); });
+  bindToggle('tAds',    function(on){ IN.down[2] = on; });
+  bindToggle('tCrouch', function(on){ IN.keys['KeyC'] = on; });
+
+  document.addEventListener('touchstart',  onTouchStart, {passive:false});
+  document.addEventListener('touchmove',   onTouchMove,  {passive:false});
+  document.addEventListener('touchend',    onTouchEnd,   {passive:false});
+  document.addEventListener('touchcancel', onTouchEnd,   {passive:false});
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, {passive:false});
+
+  /* iOS requires a user gesture before WebAudio will produce sound */
+  document.addEventListener('touchend', function unlock(){
+    AUD.init(); AUD.resume();
+    document.removeEventListener('touchend', unlock);
+  }, {passive:true});
+
+  document.getElementById('keysDesktop').style.display = 'none';
+  document.getElementById('keysTouch').style.display = '';
+  var hint = document.getElementById('menuHint');
+  if(hint) hint.textContent = 'TAP DEPLOY \u00B7 PLAY IN LANDSCAPE';
+  updateOrientation();
 }
 </script>
 <script>
@@ -1681,14 +2048,15 @@ function updatePlayer(dt){
   PL.h = damp(PL.h, targetH, 14, dt);
   PL.eye = PL.h - 0.16;
 
-  /* movement input */
+  /* movement input (keyboard = digital, virtual stick = analog) */
   var fwd = (IN.isDown('KeyW')?1:0) - (IN.isDown('KeyS')?1:0);
   var str = (IN.isDown('KeyD')?1:0) - (IN.isDown('KeyA')?1:0);
+  fwd += IN.axis.y; str += IN.axis.x;
   var len = Math.hypot(fwd,str);
-  if(len>0){ fwd/=len; str/=len; }
+  if(len>1){ fwd/=len; str/=len; len = 1; }
 
-  var moving = len > 0.01;
-  var wantSprint = IN.isDown('ShiftLeft') && fwd > 0.3 && !PL.crouch && PL.ads < 0.5 && !PL.exhausted;
+  var moving = len > 0.08;
+  var wantSprint = (IN.isDown('ShiftLeft') || IN.sprint) && fwd > 0.3 && !PL.crouch && PL.ads < 0.5 && !PL.exhausted;
   PL.sprinting = wantSprint && moving && PL.onGround;
 
   if(PL.sprinting){
@@ -3415,6 +3783,8 @@ function startGame(){
   hideAllScreens();
   AUD.init(); AUD.resume(); AUD.setVol(SET.vol);
   applyShadowSetting();
+  goFullscreen();
+  setTouchUI(true);
   requestLock();
   banner('OVERRUN', 'SURVIVE', 1800);
   startWave(1);
@@ -3438,6 +3808,7 @@ function playerDeath(){
   AUD.tone(220,60,1.4,.32,'sawtooth');
   AUD.noise(1.6,.3,'lowpass',400,1);
   addShake(1.2, 1.0);
+  setTouchUI(false);
   document.exitPointerLock && document.exitPointerLock();
   setTimeout(function(){
     UI.hud.classList.remove('on');
@@ -3457,12 +3828,15 @@ function pauseGame(){
   if(G.state !== 'playing') return;
   G.state = 'paused';
   showScreen('pause');
+  setTouchUI(false);
   document.exitPointerLock && document.exitPointerLock();
 }
 function resumeGame(){
   if(G.state !== 'paused') return;
   hideAllScreens();
   G.state = 'playing';
+  goFullscreen();
+  setTouchUI(true);
   requestLock();
 }
 function quitToMenu(){
@@ -3470,6 +3844,7 @@ function quitToMenu(){
   UI.hud.classList.remove('on');
   clearEntities();
   showScreen('menu');
+  setTouchUI(false);
   document.exitPointerLock && document.exitPointerLock();
 }
 function showScreen(id){
@@ -3486,8 +3861,12 @@ function hideAllScreens(){
    18. SETTINGS
 --------------------------------------------------------------------------- */
 function loadSettings(){
+  var stored = null;
+  try{ stored = localStorage.getItem('overrun_set'); }catch(e){}
+  /* First launch on a phone/tablet: defaults a mobile GPU can actually sustain. */
+  if(!stored && IS_TOUCH){ SET.shadows = false; SET.res = 0.72; SET.fov = 88; }
   try{
-    var s = JSON.parse(localStorage.getItem('overrun_set')||'{}');
+    var s = JSON.parse(stored||'{}');
     for(var k in s) if(SET.hasOwnProperty(k)) SET[k] = s[k];
     G.best = parseInt(localStorage.getItem('overrun_best')||'0',10)||0;
   }catch(e){}
@@ -3503,7 +3882,7 @@ function applyShadowSetting(){
   });
 }
 function applyRes(){
-  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2) * SET.res);
+  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, pixelCap()) * SET.res);
   onResize();
 }
 function bindSettings(){
@@ -3560,6 +3939,7 @@ function initMenus(){
     if(e.code === 'Enter' && G.state === 'menu') startGame();
   });
   G.renderer.domElement.addEventListener('mousedown', function(){
+    if(IS_TOUCH) return;
     if(G.state === 'playing' && !IN.locked) requestLock();
   });
 }
@@ -3572,6 +3952,8 @@ function onResize(){
   G.renderer.setSize(w,h,false);
   G.camera.aspect = w/h; G.camera.updateProjectionMatrix();
   G.viewCam.aspect = w/h; G.viewCam.updateProjectionMatrix();
+  touchHome();
+  updateOrientation();
 }
 
 function initEngine(){
@@ -3579,8 +3961,8 @@ function initEngine(){
   _pEye = new THREE.Vector3(); _eToP = new THREE.Vector3();
   _eEye = new THREE.Vector3(); _eMove = new THREE.Vector3();
 
-  G.renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
-  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2)*SET.res);
+  G.renderer = new THREE.WebGLRenderer({antialias:!IS_TOUCH, powerPreference:'high-performance'});
+  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, pixelCap())*SET.res);
   G.renderer.setSize(window.innerWidth, window.innerHeight);
   G.renderer.shadowMap.enabled = SET.shadows;
   G.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3598,6 +3980,9 @@ function initEngine(){
   G.viewCam = new THREE.PerspectiveCamera(66, window.innerWidth/window.innerHeight, 0.005, 12);
 
   window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', function(){ setTimeout(onResize, 250); });
+  /* iOS Safari resizes the visual viewport when the URL bar hides/shows */
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 }
 
 var _lastT = 0;
@@ -3665,6 +4050,7 @@ window.__bootGame = function(){
     initInput();
     initMenus();
     bindSettings();
+    initTouch();
     buildViewModels();
     initPlayer();
     buildWorld();
