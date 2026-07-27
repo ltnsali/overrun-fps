@@ -24,11 +24,13 @@ async function useLocalThree(page) {
 /**
  * Load the game and wait until the engine has booted to the main menu.
  * `?touch=1` forces the mobile control scheme regardless of UA sniffing.
+ * `net=local` keeps Enter Arena on the cross-tab transport so tests never depend
+ * on the internet; callers can override it through `query`.
  */
 async function bootGame(page, { touch = false, query = '' } = {}) {
   await useLocalThree(page);
-  const params = [touch ? 'touch=1' : '', query].filter(Boolean).join('&');
-  await page.goto(params ? `/?${params}` : '/');
+  const params = [touch ? 'touch=1' : '', 'net=local', query].filter(Boolean).join('&');
+  await page.goto(`/?${params}`);
   await page.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
     timeout: 45_000
   });
@@ -151,10 +153,13 @@ async function ensureLandscape(page) {
   if (vp.height > vp.width) await resizeTo(page, vp.height, vp.width);
 }
 
-/** Tap Deploy and wait for the round to be live. */
+/** Enter the arena through the real lobby and wait for the round to be live. */
 async function startPlaying(page) {
-  await page.locator('#btnPlay').click();
-  await page.waitForFunction(() => window.G.state === 'playing');
+  await page.locator('#btnMulti').click();
+  await page.locator('#btnMpStart').click();
+  await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+    timeout: 25_000
+  });
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
 }
 

@@ -4,7 +4,6 @@
 --------------------------------------------------------------------------- */
 var optsReturn = 'menu';
 function initMenus(){
-  document.getElementById('btnPlay').onclick = function(){ AUD.init(); AUD.resume(); startGame('survival'); };
   document.getElementById('btnMulti').onclick = function(){ AUD.init(); AUD.resume(); showScreen('mp'); };
   document.getElementById('btnHelp').onclick = function(){ showScreen('help'); };
   document.getElementById('btnHelpBack').onclick = function(){ showScreen('menu'); };
@@ -20,7 +19,6 @@ function initMenus(){
   mpBindOptions();
   document.getElementById('btnMpBack').onclick = function(){ mpDisconnect(); showScreen('menu'); };
   document.getElementById('btnMpStart').onclick = function(){ AUD.init(); AUD.resume(); mpEnterArena(false); };
-  document.getElementById('btnMpSolo').onclick = function(){ AUD.init(); AUD.resume(); mpEnterArena(true); };
   document.getElementById('btnMoverAgain').onclick = function(){ startGame('dm'); };
   document.getElementById('btnMoverMenu').onclick = function(){ quitToMenu(); };
 
@@ -44,7 +42,7 @@ function initMenus(){
     }
     if(e.code === 'Enter' && G.state === 'menu' &&
        !document.getElementById('mp').classList.contains('on') &&
-       !document.getElementById('mover').classList.contains('on')) startGame('survival');
+       !document.getElementById('mover').classList.contains('on')) showScreen('mp');
   });
   window.addEventListener('keyup', function(e){
     if(e.code === 'Tab' && MATCH.boardOpen) mpShowBoard(false);

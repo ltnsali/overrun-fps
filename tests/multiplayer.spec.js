@@ -216,7 +216,7 @@ test.describe('deathmatch lobby', () => {
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
 
     await page.locator('#btnMulti').click();
-    await page.locator('#btnMpSolo').click();
+    await page.evaluate(() => mpEnterArena(true));   // solo practice, no UI button any more
 
     await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on);
     expect(await page.evaluate(() => window.NET.kind)).toBe('off');
@@ -242,7 +242,7 @@ test.describe('deathmatch lobby', () => {
     await page.goto('/?touch=0');
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
     await page.locator('#btnMulti').click();
-    await page.locator('#btnMpSolo').click();
+    await page.evaluate(() => mpEnterArena(true));
     await page.waitForFunction(() => window.MATCH.on);
 
     await page.keyboard.down('Tab');

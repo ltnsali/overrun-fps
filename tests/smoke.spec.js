@@ -37,14 +37,27 @@ test.describe('boot', () => {
 });
 
 test.describe('gameplay', () => {
-  test('Deploy starts wave 1 and shows the HUD', async ({ page }) => {
+  test('the menu offers deathmatch only', async ({ page }) => {
+    await bootGame(page, { query: 'touch=0' });
+
+    await expect(page.locator('#btnMulti')).toBeVisible();
+    await expect(page.locator('#btnHelp')).toBeVisible();
+    await expect(page.locator('#btnOpts')).toBeVisible();
+    // Survival and solo practice are no longer offered.
+    expect(await page.locator('#btnPlay').count(), 'Deploy should be gone').toBe(0);
+    await page.locator('#btnMulti').click();
+    expect(await page.locator('#btnMpSolo').count(), 'Solo vs Bots should be gone').toBe(0);
+  });
+
+  test('Enter Arena starts a deathmatch and shows the HUD', async ({ page }) => {
     skipIfPortrait(page);
     await bootGame(page, { touch: true });
     await startPlaying(page);
 
     await expect(page.locator('#hud')).toHaveClass(/on/);
     await expect(page.locator('#menu')).not.toHaveClass(/on/);
-    await expect(page.locator('#waveNum')).toHaveText('1');
+    await expect(page.locator('#waveTitle')).toHaveText('DEATHMATCH');
+    await expect(page.locator('#waveNum')).toHaveText('0 / 20');
     await expect(page.locator('#wAmmo')).not.toBeEmpty();
     expectFillsViewport(await measure(page));
   });
@@ -62,9 +75,8 @@ test.describe('gameplay', () => {
 
   test('touch controls stay off for pointer devices', async ({ page }) => {
     await bootGame(page, { query: 'touch=0' });
-    await page.locator('#btnPlay').click();
-    // Headless Chromium may refuse pointer lock, which pauses immediately - the
-    // touch layer must stay hidden either way.
+    await startPlaying(page);
+
     await expect(page.locator('#menu')).not.toHaveClass(/on/);
     await expect(page.locator('#touchUI')).not.toHaveClass(/on/);
     await expect(page.locator('#rotate')).toBeHidden();
@@ -81,7 +93,7 @@ test.describe('gameplay', () => {
         return Promise.reject(new DOMException('denied', 'WrongDocumentError'));
       };
     });
-    await page.evaluate(() => startGame('survival'));
+    await page.evaluate(() => startGame('dm'));
 
     await expect.poll(() => page.evaluate(() => window.IN.locked)).toBe(true);
     expect(await page.evaluate(() => window.G.state)).toBe('playing');
@@ -98,7 +110,7 @@ test.describe('gameplay', () => {
         return Promise.reject(new DOMException('denied', 'WrongDocumentError'));
       };
     });
-    await page.evaluate(() => startGame('survival'));
+    await page.evaluate(() => startGame('dm'));
     await expect.poll(() => page.evaluate(() => window.G.state)).toBe('playing');
 
     await page.keyboard.press('Escape');
