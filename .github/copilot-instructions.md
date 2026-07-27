@@ -55,19 +55,25 @@ server/relay.js       dependency-free WebSocket relay for deathmatch
 `G.mode` is `'survival'` or `'dm'`. The netcode lives in
 [src/js/14-multiplayer.js](../src/js/14-multiplayer.js) (`MATCH`, `NET`, `mp*` functions).
 
-- The transport is a **dumb broadcast bus**: [server/relay.js](../server/relay.js) forwards a
-  message to everyone else in the room; `BroadcastChannel` (`?net=local`) does the same between
-  tabs. There is no authoritative server.
-- Each client simulates only its own player. A shooter sends `h` (hit); the **victim** applies
-  the damage — a client is the only authority on its own health. Scores are derived identically
-  everywhere from `d` (death) messages.
+- The transport is always a **dumb broadcast bus**, whichever pipe carries it:
+  - `p2p` (default) — WebRTC data channels via PeerJS. Whoever claims the room's
+    well-known peer id (`overrun-v1-<ROOM>`) becomes the host and rebroadcasts every
+    message. Only signalling touches a third party, so no server of ours is needed.
+    Clients that lose the host re-claim the arena.
+  - `ws` — [server/relay.js](../server/relay.js), a dependency-free relay, used when
+    `?relay=ws://host:port` is set (or on a plain-http page, where it is derived).
+  - `local` — `BroadcastChannel` between tabs, for development.
+- `?net=local|relay|p2p` pins a transport. Tests rely on this to stay hermetic.
+- There is no authoritative server. Each client simulates only its own player; a shooter
+  sends `h` (hit) and the **victim** applies the damage — a client is the only authority
+  on its own health. Scores are derived identically everywhere from `d` (death) messages.
 - Remote players are interpolated `MP_LERP` seconds in the past from arrival-time-stamped
   snapshots, so no clock sync is needed. Their boxes are added to `hitscan` as extra targets.
 - Deathmatch arenas are generated from a PRNG seeded with the room code (`mpBuildSeededWorld`),
   otherwise clients would stand in different geometry. Never call `buildWorld()` directly in dm.
 - Bots are solo-practice only — with no host there is nobody to own their simulation.
-- `?relay=ws://host:port` overrides the relay address; the default is port 8787 on the page host.
-  `npm run relay` starts it.
+- The lobby asks for a callsign and nothing else. Frag limit, match length and bot count come
+  from `MPOPT` defaults; the arena is `ARENA` unless a shared link pins one with `?room=CODE`.
 
 ## Tests
 
