@@ -32,8 +32,18 @@ var NET = {
   sock:null, chan:null,
   peer:null, conns:[], isHost:false,   /* peer-to-peer */
   peers:{},              /* id -> remote player */
+  trace:[],              /* how we got into this arena - see mpTrace */
   acc:0
 };
+
+/* A peer-to-peer mesh has no server log, so when two players end up in separate
+   arenas there is nothing to read afterwards. This keeps the decisions that got
+   us here - which slot was joined, claimed or stepped over, and why - where a
+   test or a player report can pick them up. */
+function mpTrace(s){
+  if(NET.trace.length > 40) return;
+  NET.trace.push(Math.round(performance.now()) + 'ms ' + s);
+}
 
 function mpNow(){ return performance.now()/1000; }
 function mpOnline(){ return NET.kind !== 'off'; }
@@ -131,6 +141,8 @@ var MP_RETRY_MS = 1200;
 var MP_JOIN_MS = 3500;        /* nobody answered our offer - treat the slot as dead */
 var MP_HANDSHAKE_MS = 12000;  /* somebody did answer - let ICE finish, it is slow */
 var MP_CLAIM_MS = 5000;
+var MP_REJOIN_TRIES = 3;  /* goes back to a slot we know is owned, not past it */
+var MP_REJOIN_MS = 600;
 function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
 
 /* Signalling defaults to the PeerJS cloud, which some networks block outright -
@@ -188,6 +200,7 @@ function mpP2PAttempt(n, onReady){
   NET.err = '';
   NET.lastErr = '';
   _p2pDown = false;
+  mpTrace('pass ' + n + ' for room ' + NET.room);
   mpP2PSlot(0, function(ok){
     if(ok || n + 1 >= MP_P2P_TRIES) return onReady(ok);
     mpRosterText('ARENA DID NOT ANSWER \u00B7 RETRYING\u2026');
@@ -195,25 +208,39 @@ function mpP2PAttempt(n, onReady){
   });
 }
 
-function mpP2PSlot(slot, onReady, rejoined){
+function mpP2PSlot(slot, onReady, rejoins){
+  rejoins = rejoins || 0;
   if(slot >= MP_P2P_SLOTS){
     NET.err = NET.err || ('Could not reach the arena' +
       (NET.lastErr ? ' (' + NET.lastErr + ')' : '') + '. Check your connection and try again.');
     return onReady(false);
   }
+  mpTrace('slot ' + slot + ' try' + (rejoins ? ' (retry ' + rejoins + ')' : ''));
   mpP2PTryJoin(slot, function(joined){
+    mpTrace('join ' + slot + ' ' + (joined ? 'ok' : 'no answer'));
     if(joined) return onReady(true);
     if(_p2pDown) return onReady(false);
     mpP2PTryClaim(slot, function(claimed, why){
+      mpTrace('claim ' + slot + ' ' + (claimed ? 'ok' : 'failed ' + (why || 'timeout')));
       if(claimed) return onReady(true);
       if(_p2pDown) return onReady(false);
-      /* 'unavailable-id' means somebody owns this slot after all. Two players who
-         enter at the same moment both find it empty and both claim it; the loser
-         must go back and join the winner, because walking on to host the next slot
-         is exactly how one room turns into two arenas. Only one retry, so a slot
-         held by a registration that never answers is still stepped over. */
-      if(why === 'unavailable-id' && !rejoined) return mpP2PSlot(slot, onReady, true);
-      mpP2PSlot(slot + 1, onReady);   /* this slot is a ghost - step over it */
+      /* We could not join this slot and we could not take it either, so somebody
+         is on it - or the server is not answering. Neither is evidence that the
+         slot is free, and hosting the next one instead is exactly how one room
+         turns into two arenas, so go back and knock again.
+
+         Several tries, because the owner is often busy: with three players
+         entering at once, two of them are knocking on the same host, and a
+         claim that merely times out used to be read as "dead slot" and stepped
+         straight over. Still bounded, so a slot pinned by a registration that
+         never answers is eventually given up on. */
+      if(rejoins < MP_REJOIN_TRIES){
+        return setTimeout(function(){
+          mpP2PSlot(slot, onReady, rejoins + 1);
+        }, MP_REJOIN_MS);
+      }
+      mpTrace('slot ' + slot + ' looks dead - stepping over');
+      mpP2PSlot(slot + 1, onReady);
     });
   });
 }

@@ -8,6 +8,7 @@
     "relay": "node server/relay.js",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
+    "test:live": "playwright test -c playwright.live.config.js",
     "test:report": "playwright show-report"
   },
   "devDependencies": {

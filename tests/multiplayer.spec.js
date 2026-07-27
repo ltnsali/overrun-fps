@@ -255,6 +255,96 @@ test.describe('deathmatch lobby', () => {
     expect(result.host, 'the loser of the race is a client').toBe(false);
   });
 
+  test('a busy host is knocked on again rather than abandoned for the next slot', async ({
+    page
+  }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          /* Three players enter at once, so the winner of slot 0 has two losers
+             knocking at the same time and misses one offer before answering it.
+             Observed live: the second loser gave up on a slot it had just been
+             told was owned, and hosted slot 1 alone. */
+          let probes = 0;
+          window.Peer = function (id) {
+            const on = {};
+            this.on = (k, f) => (on[k] = f);
+            this.destroy = () => {};
+            this.connect = () => {
+              const ch = {};
+              const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
+              // Probes 1 and 2 go unanswered - the host is busy with the other loser.
+              if (++probes > 2) {
+                setTimeout(() => {
+                  conn.peerConnection.remoteDescription = { sdp: 'x' };
+                  ch.open && ch.open();
+                }, 30);
+              }
+              return conn;
+            };
+            setTimeout(() => {
+              if (id) on.error && on.error({ type: 'unavailable-id' });
+              else on.open && on.open('anon');
+            }, 10);
+          };
+          window.NET.room = 'TEST';
+          window.mpP2PSlot(0, (ok) =>
+            resolve({ ok, slot: window.NET.slot, host: window.NET.isHost, probes })
+          );
+        })
+    );
+    expect(result.ok).toBe(true);
+    expect(result.slot, 'one missed offer must not split the room').toBe(0);
+    expect(result.host, 'the loser of the race is a client').toBe(false);
+  });
+
+  test('a claim that times out is not mistaken for a free slot', async ({ page }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          /* Slot 0 is owned, but the signalling server never answers our attempt
+             to take it - no error, just silence until the claim deadline. That is
+             not evidence the slot is free, yet it used to be read as "dead slot"
+             and stepped over, so both players ended up hosting their own arena.
+             Observed live: two players, slot 0 and slot 1, neither seeing anyone. */
+          let probes = 0;
+          window.Peer = function (id) {
+            const on = {};
+            this.on = (k, f) => (on[k] = f);
+            this.destroy = () => {};
+            this.connect = () => {
+              const ch = {};
+              const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
+              if (++probes > 1) {
+                setTimeout(() => {
+                  conn.peerConnection.remoteDescription = { sdp: 'x' };
+                  ch.open && ch.open();
+                }, 30);
+              }
+              return conn; // the first probe finds nobody home yet
+            };
+            // A claim (named peer) neither opens nor errors - it just hangs.
+            if (!id) setTimeout(() => on.open && on.open('anon'), 10);
+          };
+          window.NET.room = 'TEST';
+          window.mpP2PSlot(0, (ok) =>
+            resolve({ ok, slot: window.NET.slot, host: window.NET.isHost })
+          );
+        })
+    );
+    expect(result.ok).toBe(true);
+    expect(result.slot, 'a silent server must not push us onto another slot').toBe(0);
+    expect(result.host, 'the slot was already owned, so we are a client').toBe(false);
+  });
+
   test('?peer= redirects signalling to another server', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0&peer=' + encodeURIComponent('wss://sig.example.test:8443/rtc'));
