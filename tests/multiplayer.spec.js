@@ -229,9 +229,7 @@ test.describe('deathmatch lobby', () => {
     expect(await page.evaluate(() => window.mpPeerOpts().host)).toBeUndefined();
   });
 
-  test('a player who cannot get online plays bots instead of hitting a dead end', async ({
-    page
-  }) => {
+  test('a player who cannot get online is told why, and stays in the lobby', async ({ page }) => {
     await useLocalThree(page);
     // No peer-to-peer library means no way to reach the arena - the same dead end
     // a signalling outage produces, but hermetic.
@@ -242,25 +240,23 @@ test.describe('deathmatch lobby', () => {
     await page.locator('#btnMulti').click();
     await page.locator('#btnMpStart').click();
 
-    // It must still start a playable match rather than parking on an error.
-    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on, undefined, {
+    await page.waitForFunction(() => document.getElementById('mpErr').textContent.length > 0, undefined, {
       timeout: 45_000
     });
     await nextFrame(page, 90);
 
     const state = await page.evaluate(() => ({
-      kind: window.NET.kind,
-      online: window.MATCH.online,
-      bots: window.ENEMIES.filter((e) => e.isBot).length,
-      status: document.getElementById('netStat').textContent,
+      state: window.G.state,
+      on: window.MATCH.on,
+      lobbyOpen: document.getElementById('mp').classList.contains('on'),
       lobby: document.getElementById('mpErr').textContent
     }));
-    expect(state.kind, 'the failed online attempt should land offline').toBe('off');
-    expect(state.online).toBe(false);
-    expect(state.bots, 'an offline arena needs bots to be worth playing').toBeGreaterThan(0);
-    // Loud, not silent: the player must know they are not online.
-    expect(state.status).toMatch(/offline/i);
-    expect(state.lobby, 'the lobby keeps the reason so retrying is obvious').toMatch(
+    // This is a game about fighting other people. A bots-only arena would be
+    // pretending to be online, so no match starts at all.
+    expect(state.state, 'no match may start when online is out of reach').not.toBe('playing');
+    expect(state.on).toBe(false);
+    expect(state.lobbyOpen, 'the player is left in the lobby').toBe(true);
+    expect(state.lobby, 'the reason and the way to retry must both be shown').toMatch(
       /Enter Arena/i
     );
   });
@@ -409,33 +405,6 @@ test.describe('deathmatch lobby', () => {
     await ctx.close();
   });
 
-  test('solo practice runs a deathmatch with bots and no network', async ({ page }) => {
-    await useLocalThree(page);
-    await page.goto('/?touch=0');
-    await page.waitForFunction(() => window.G && window.G.state === 'menu');
-
-    await page.locator('#btnMulti').click();
-    await page.evaluate(() => mpEnterArena(true));   // solo practice, no UI button any more
-
-    await page.waitForFunction(() => window.G.state === 'playing' && window.MATCH.on);
-    expect(await page.evaluate(() => window.NET.kind)).toBe('off');
-    await expect(page.locator('#waveTitle')).toHaveText('DEATHMATCH');
-
-    // Bots keep the arena populated.
-    await expect
-      .poll(() => page.evaluate(() => window.ENEMIES.filter((e) => e.isBot && !e.dead).length), {
-        timeout: 20_000
-      })
-      .toBeGreaterThan(0);
-
-    // Killing a bot is a frag.
-    await page.evaluate(() => {
-      const bot = window.ENEMIES.find((e) => e.isBot && !e.dead);
-      window.damageEnemy(bot, 99999, false, bot.pos.clone(), 'smg');
-    });
-    await expect.poll(() => page.evaluate(() => window.MATCH.kills)).toBe(1);
-  });
-
   test('a match ends when the clock runs out', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0&net=local');
@@ -461,11 +430,11 @@ test.describe('deathmatch lobby', () => {
 
   test('TAB opens the scoreboard during a match', async ({ page }) => {
     await useLocalThree(page);
-    await page.goto('/?touch=0');
+    await page.goto('/?touch=0&net=local');
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
     await page.locator('#btnMulti').click();
-    await page.evaluate(() => mpEnterArena(true));
-    await page.waitForFunction(() => window.MATCH.on);
+    await page.locator('#btnMpStart').click();
+    await page.waitForFunction(() => window.MATCH.on, undefined, { timeout: 20_000 });
 
     await page.keyboard.down('Tab');
     await expect(page.locator('#board')).toHaveClass(/on/);

@@ -885,7 +885,7 @@ function mpSpawnPoint(){
   return best || new THREE.Vector3(0,0,26);
 }
 
-/* ---- bots (solo practice) ----------------------------------------------- */
+/* ---- sparring bots ------------------------------------------------------- */
 
 var MP_BOT_NAMES = ['VIPER','ECHO','RAVEN','NOMAD','HAVOC','ZERO','ONYX','CIPHER','WRAITH','TALON'];
 var MP_BOT_TYPES = ['soldier','runner','grunt','heavy'];
@@ -1010,18 +1010,12 @@ function mpRosterText(msg){
   if(el) el.innerHTML = msg || '';
 }
 
-function mpEnterArena(solo){
+function mpEnterArena(){
   var name = mpClean(document.getElementById('mpName').value, 12) || 'PLAYER';
   var room = mpRoomFromUrl();
   document.getElementById('mpName').value = name;
   try{ localStorage.setItem('overrun_name', name); }catch(e){}
   mpLobbyError('');
-
-  if(solo){
-    mpRosterText('STARTING SOLO PRACTICE\u2026');
-    mpConnect('off', room, name, function(){ mpRosterText(''); startGame('dm'); });
-    return;
-  }
 
   /* ?net=local pins the cross-tab arena; ?net=relay / ?net=p2p pin one transport. */
   var forced = mpNetOverride();
@@ -1052,22 +1046,10 @@ function mpGoOnlineP2P(room, name){
   mpConnect('p2p', room, name, function(ok){
     mpRosterText('');
     if(ok){ startGame('dm'); return; }
-    mpFallbackOffline(room, name, NET.err);
-  });
-}
-
-/* Online is out of reach - the signalling server is down, rate-limiting us, or
-   the network is blocking WebRTC. Refusing to start leaves the player staring at
-   an error with nothing to play, so open an offline arena against bots instead.
-   Loud, never silent: the HUD carries an offline badge and the reason waits in
-   the lobby, where pressing Enter Arena tries the network again. */
-function mpFallbackOffline(room, name, why){
-  var reason = why || 'Could not get online.';
-  mpConnect('off', room, name, function(){
-    startGame('dm');
-    mpStatus('offline \u00B7 bots only \u00B7 re-enter the arena to retry', true);
-    notice('OFFLINE \u00B7 FIGHTING BOTS');
-    mpLobbyError(reason + ' Started an offline match against bots \u2014 press Enter Arena to try again.');
+    /* This game is deathmatch against other people. Dropping the player into a
+       bots-only arena instead would be pretending to be online, so say what went
+       wrong and leave them in the lobby, where Enter Arena tries again. */
+    mpLobbyError((NET.err || 'Could not get online.') + ' Press Enter Arena to try again.');
   });
 }
 

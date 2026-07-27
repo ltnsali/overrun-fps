@@ -18,7 +18,7 @@ function initMenus(){
   /* ---- deathmatch lobby ---- */
   mpBindOptions();
   document.getElementById('btnMpBack').onclick = function(){ mpDisconnect(); showScreen('menu'); };
-  document.getElementById('btnMpStart').onclick = function(){ AUD.init(); AUD.resume(); mpEnterArena(false); };
+  document.getElementById('btnMpStart').onclick = function(){ AUD.init(); AUD.resume(); mpEnterArena(); };
   document.getElementById('btnMoverAgain').onclick = function(){ startGame('dm'); };
   document.getElementById('btnMoverMenu').onclick = function(){ quitToMenu(); };
 
