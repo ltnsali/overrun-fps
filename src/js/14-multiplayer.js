@@ -121,24 +121,34 @@ function mpP2PConnect(onReady){
       NET.err = 'Could not load the online networking library. Check your connection.';
       return onReady(false);
     }
-    mpP2PClaimHost(onReady);
+    mpP2PClaimHost(onReady, 0);
   });
 }
 
-/* Try to own the room. Whoever gets there first hosts it. */
-function mpP2PClaimHost(onReady){
+/* Claiming and joining hand off to each other: the room id can be taken by a host
+   that has already gone away, so a failure on either side retries as the other.
+   `step` bounds that so a dead arena cannot ping-pong forever. */
+var MP_P2P_STEPS = 3;
+
+function mpP2PClaimHost(onReady, step){
+  step = step || 0;
   var settled = false;
   var peer;
   try{ peer = new Peer(mpHostId(NET.room), {debug:0}); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
 
-  var giveUp = setTimeout(function(){
+  function bail(why){
     if(settled) return;
-    settled = true;
+    settled = true; clearTimeout(giveUp);
     try{ peer.destroy(); }catch(e){}
-    NET.err = 'Could not reach the matchmaking service. Try again in a moment.';
+    if(step < MP_P2P_STEPS){ mpP2PJoinHost(onReady, step + 1); return; }
+    NET.err = why;
     if(onReady) onReady(false);
-  }, 12000);
+  }
+
+  var giveUp = setTimeout(function(){
+    bail('Could not reach the matchmaking service. Check your connection and try again.');
+  }, 9000);
 
   peer.on('open', function(){
     if(settled) return;
@@ -153,36 +163,41 @@ function mpP2PClaimHost(onReady){
   peer.on('error', function(e){
     var type = e && e.type;
     if(!settled && type === 'unavailable-id'){
-      /* Someone already hosts this arena - join them instead. */
+      /* Someone already holds this arena - go and join them. */
       settled = true; clearTimeout(giveUp);
       try{ peer.destroy(); }catch(e2){}
-      mpP2PJoinHost(onReady);
+      mpP2PJoinHost(onReady, step + 1);
       return;
     }
-    if(settled) return;
-    settled = true; clearTimeout(giveUp);
-    try{ peer.destroy(); }catch(e2){}
-    NET.err = 'Online play failed to start (' + (type || 'unknown') + ').';
-    if(onReady) onReady(false);
+    bail('Online play failed to start (' + (type || 'unknown') + ').');
   });
 }
 
-function mpP2PJoinHost(onReady){
+function mpP2PJoinHost(onReady, step){
+  step = step || 0;
   var settled = false;
   var peer;
   try{ peer = new Peer(undefined, {debug:0}); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return onReady(false); }
 
-  var giveUp = setTimeout(function(){
+  function bail(why){
     if(settled) return;
-    settled = true;
+    settled = true; clearTimeout(giveUp);
     try{ peer.destroy(); }catch(e){}
-    NET.err = 'Could not reach the arena host. Try again in a moment.';
+    /* The registration is there but nobody is answering it - take the arena over. */
+    if(step < MP_P2P_STEPS){ mpP2PClaimHost(onReady, step + 1); return; }
+    NET.err = why;
     if(onReady) onReady(false);
-  }, 12000);
+  }
+
+  var giveUp = setTimeout(function(){
+    bail('Could not reach the arena host. Check your connection and try again.');
+  }, 9000);
 
   peer.on('open', function(){
-    var conn = peer.connect(mpHostId(NET.room), {reliable:false});
+    var conn;
+    try{ conn = peer.connect(mpHostId(NET.room), {reliable:false}); }
+    catch(e){ return bail('Could not open a connection to the arena.'); }
     conn.on('open', function(){
       if(settled) return;
       settled = true; clearTimeout(giveUp);
@@ -191,16 +206,10 @@ function mpP2PJoinHost(onReady){
       mpP2PStatus();
       if(onReady) onReady(true);
     });
-    conn.on('error', function(){});
+    conn.on('error', function(){ bail('Could not open a connection to the arena.'); });
   });
   peer.on('error', function(e){
-    if(settled) return;
-    settled = true; clearTimeout(giveUp);
-    try{ peer.destroy(); }catch(e2){}
-    /* The host vanished between our two attempts - take the room ourselves. */
-    if(e && e.type === 'peer-unavailable'){ mpP2PClaimHost(onReady); return; }
-    NET.err = 'Could not join the arena (' + ((e && e.type) || 'unknown') + ').';
-    if(onReady) onReady(false);
+    bail('Could not join the arena (' + ((e && e.type) || 'unknown') + ').');
   });
 }
 
@@ -242,7 +251,7 @@ function mpP2PRehost(){
     mpStatus('arena host lost \u00B7 reconnecting\u2026', true);
     mpP2PClaimHost(function(ok){
       if(!ok) mpStatus('arena connection lost', true);
-    });
+    }, 0);
   }, 400 + Math.random()*900);
 }
 
@@ -949,7 +958,7 @@ function mpGoOnlineP2P(room, name){
   mpConnect('p2p', room, name, function(ok){
     mpRosterText('');
     if(!ok){
-      mpLobbyError((NET.err || 'Could not get online.') + ' You can still play Solo vs Bots.');
+      mpLobbyError((NET.err || 'Could not get online.') + ' Press Enter Arena to retry.');
       return;
     }
     startGame('dm');
