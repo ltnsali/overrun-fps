@@ -45,8 +45,23 @@ async function bootLive(page, query) {
   return page;
 }
 
+/* Contexts created from the `browser` fixture are not cleaned up between tests,
+   and every one of them leaves a full three.js game loop running on a software
+   renderer. Left open they starve the machine: entering an arena measured 21.8s
+   at the end of a run and 3.3s on its own, with the network trace showing only
+   210ms of that was networking. So every context is tracked and closed. */
+const opened = [];
+async function newPageIn(browser) {
+  const ctx = await browser.newContext();
+  opened.push(ctx);
+  return ctx.newPage();
+}
+test.afterEach(async () => {
+  await Promise.all(opened.splice(0).map((c) => c.close().catch(() => {})));
+});
+
 async function openClient(browser, room, query) {
-  const page = await (await browser.newContext()).newPage();
+  const page = await newPageIn(browser);
   await bootLive(page, 'touch=0&room=' + room + (query ? '&' + query : ''));
   return page;
 }
@@ -435,13 +450,17 @@ test.describe('online arenas on the deployed site', () => {
     const started = Date.now();
     await enterArena(page, 'TIMER');
     await page.waitForFunction(() => window.G.state === 'playing', undefined, { timeout: 60_000 });
-    expect(Date.now() - started).toBeLessThan(20_000);
+    const took = Date.now() - started;
+    // Without the trace a slow entry is just a number, and the reason it was slow
+    // - which slot was probed, what the claim said - is exactly what is needed.
+    const trace = (await snapshot(page)).trace.join('\n  ');
+    expect(took, 'entering an empty room took ' + took + 'ms:\n  ' + trace).toBeLessThan(20_000);
   });
 
   test('a player who cannot reach signalling is told, and gets no bots match', async ({
     browser
   }) => {
-    const page = await (await browser.newContext()).newPage();
+    const page = await newPageIn(browser);
     // Stand in for a blocked signalling host, a proxy or a content blocker - all
     // of which a player hits as "the library never loaded".
     await page.route(/peerjs/i, (route) => route.abort());
