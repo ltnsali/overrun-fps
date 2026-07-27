@@ -209,6 +209,52 @@ test.describe('deathmatch lobby', () => {
     expect(result.ms, 'a silent slot must not burn the long deadline').toBeLessThan(6000);
   });
 
+  test('losing the race for a slot joins the winner instead of hosting the next one', async ({
+    page
+  }) => {
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=local');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    const result = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          // Two players enter at the same moment: both find slot 0 empty, both
+          // claim it, and we are the one that loses. The slot is joinable from
+          // then on, because the winner is now hosting it.
+          let probes = 0;
+          window.Peer = function (id) {
+            const on = {};
+            this.on = (k, f) => (on[k] = f);
+            this.destroy = () => {};
+            this.connect = () => {
+              const ch = {};
+              const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
+              if (++probes > 1) {
+                setTimeout(() => {
+                  conn.peerConnection.remoteDescription = { sdp: 'x' };
+                  ch.open && ch.open();
+                }, 30);
+              }
+              return conn; // the first probe finds nobody and stays silent
+            };
+            setTimeout(() => {
+              if (id) on.error && on.error({ type: 'unavailable-id' });
+              else on.open && on.open('anon');
+            }, 10);
+          };
+          window.NET.room = 'TEST';
+          window.mpP2PSlot(0, (ok) =>
+            resolve({ ok, slot: window.NET.slot, host: window.NET.isHost })
+          );
+        })
+    );
+    expect(result.ok).toBe(true);
+    // Stepping to slot 1 here is what splits one room into two arenas.
+    expect(result.slot, 'must join the slot the winner took, not the next one').toBe(0);
+    expect(result.host, 'the loser of the race is a client').toBe(false);
+  });
+
   test('?peer= redirects signalling to another server', async ({ page }) => {
     await useLocalThree(page);
     await page.goto('/?touch=0&peer=' + encodeURIComponent('wss://sig.example.test:8443/rtc'));

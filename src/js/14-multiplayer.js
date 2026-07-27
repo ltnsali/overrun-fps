@@ -195,7 +195,7 @@ function mpP2PAttempt(n, onReady){
   });
 }
 
-function mpP2PSlot(slot, onReady){
+function mpP2PSlot(slot, onReady, rejoined){
   if(slot >= MP_P2P_SLOTS){
     NET.err = NET.err || ('Could not reach the arena' +
       (NET.lastErr ? ' (' + NET.lastErr + ')' : '') + '. Check your connection and try again.');
@@ -204,9 +204,15 @@ function mpP2PSlot(slot, onReady){
   mpP2PTryJoin(slot, function(joined){
     if(joined) return onReady(true);
     if(_p2pDown) return onReady(false);
-    mpP2PTryClaim(slot, function(claimed){
+    mpP2PTryClaim(slot, function(claimed, why){
       if(claimed) return onReady(true);
       if(_p2pDown) return onReady(false);
+      /* 'unavailable-id' means somebody owns this slot after all. Two players who
+         enter at the same moment both find it empty and both claim it; the loser
+         must go back and join the winner, because walking on to host the next slot
+         is exactly how one room turns into two arenas. Only one retry, so a slot
+         held by a registration that never answers is still stepped over. */
+      if(why === 'unavailable-id' && !rejoined) return mpP2PSlot(slot, onReady, true);
       mpP2PSlot(slot + 1, onReady);   /* this slot is a ghost - step over it */
     });
   });
@@ -258,19 +264,19 @@ function mpP2PTryJoin(slot, cb){
 
 /* Nobody answered, so try to own this slot and host the arena. */
 function mpP2PTryClaim(slot, cb){
-  var settled = false, peer;
+  var settled = false, peer, why = '';
   try{ peer = new Peer(mpHostId(NET.room, slot), mpPeerOpts()); }
-  catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
+  catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false, ''); }
 
   function fail(){
     if(settled) return;
     settled = true; clearTimeout(t);
     try{ peer.destroy(); }catch(e){}
-    cb(false);
+    cb(false, why);
   }
   var t = setTimeout(fail, MP_CLAIM_MS);
 
-  peer.on('error', function(e){ mpP2PNoteErr(e); fail(); });
+  peer.on('error', function(e){ why = (e && e.type) || ''; mpP2PNoteErr(e); fail(); });
   peer.on('open', function(){
     if(settled) return;
     settled = true; clearTimeout(t);
