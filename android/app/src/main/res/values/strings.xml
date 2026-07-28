@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OVERRUN</string>
+    <string name="title_activity_main">OVERRUN</string>
+    <string name="package_name">com.overrun.fps</string>
+    <string name="custom_url_scheme">com.overrun.fps</string>
+</resources>

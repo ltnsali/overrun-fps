@@ -3,3 +3,23 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Assembled by tools/build-www.js - a copy of files already in the repo
+www/
+
+# Android build output; the native project itself is committed
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/capacitor-cordova-android-plugins/
+# Copied verbatim from www/ by `cap sync` - never edit or commit
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+
+# Upload signing material. The key itself and the passwords that unlock it stay
+# on the machine that holds them - see docs/android.md.
+*.keystore
+*.jks
+android/keystore.properties

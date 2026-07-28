@@ -1,0 +1,96 @@
+apply plugin: 'com.android.application'
+
+/* The version lives in package.json so the web build and the store build can
+   never disagree about what "1.0.0" means. Play needs an integer that only ever
+   goes up, so we derive one: 1.2.3 -> 10203. That leaves room for 99 patches
+   and 99 minors per major without ever having to remember to bump a counter. */
+def semver = new groovy.json.JsonSlurper()
+        .parseText(rootProject.file('../package.json').text).version
+def (vMajor, vMinor, vPatch) = semver.tokenize('.').collect { it.toInteger() }
+
+/* Signing material never lives in the repository. Environment variables win, so
+   CI can inject them; keystore.properties is the local fallback and is
+   git-ignored. With neither present the release build is simply unsigned, which
+   is a clear failure at upload time rather than a silent debug-signed release. */
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def signingValue = { String envName, String propName ->
+    System.getenv(envName) ?: keystoreProperties.getProperty(propName)
+}
+def uploadKeystore = signingValue('OVERRUN_KEYSTORE', 'storeFile')
+
+android {
+    namespace "com.overrun.fps"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.overrun.fps"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode vMajor * 10000 + vMinor * 100 + vPatch
+        versionName semver
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (uploadKeystore) {
+                storeFile file(uploadKeystore)
+                storePassword signingValue('OVERRUN_KEYSTORE_PASSWORD', 'storePassword')
+                keyAlias signingValue('OVERRUN_KEY_ALIAS', 'keyAlias')
+                keyPassword signingValue('OVERRUN_KEY_PASSWORD', 'keyPassword')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (uploadKeystore) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+    /* The game is one WebGL canvas; there is nothing to gain from splitting the
+       bundle by density or ABI, and a single APK per install keeps the Play
+       "app size" figure honest. */
+    bundle {
+        language { enableSplit = false }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

@@ -6,7 +6,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
+/* Normally the repository itself. SERVE_ROOT lets the packaged-payload test
+   point us at www/ — the exact bytes that go into the Android APK. */
+const ROOT = path.resolve(__dirname, '..', process.env.SERVE_ROOT || '.');
 const PORT = Number(process.argv[2] || process.env.PORT || 4173);
 
 const TYPES = {

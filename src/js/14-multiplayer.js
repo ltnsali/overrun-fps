@@ -105,7 +105,10 @@ function mpRelayUrl(){
    becomes the host and rebroadcasts everything it receives, which is exactly what
    server/relay.js does. Only signalling touches a third party. */
 
+/* Our own copy first, for the same reason as the engine: a packaged build has no
+   CDN behind it. The CDNs remain a fallback for the web build. */
 var MP_PEER_CDN = [
+  'vendor/peerjs.min.js',
   'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'
 ];

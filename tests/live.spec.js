@@ -156,7 +156,7 @@ test.describe('what the deployment serves', () => {
     expect(bad, 'every file index.html references must be published').toEqual([]);
   });
 
-  test('gets three.js from its CDN', async ({ page }) => {
+  test('serves the engine from its own origin, not a CDN', async ({ page, baseURL }) => {
     const three = [];
     page.on('response', (r) => {
       if (/three(\.min)?\.js/i.test(r.url())) three.push({ url: r.url(), status: r.status() });
@@ -164,12 +164,33 @@ test.describe('what the deployment serves', () => {
     await bootLive(page, 'touch=0');
 
     expect(await page.evaluate(() => !!window.THREE), 'the engine must be loaded').toBe(true);
+    const origin = new URL(baseURL || 'http://localhost').origin;
     expect(
-      three.some((r) => r.status === 200),
-      'three.js came from ' + JSON.stringify(three)
+      three.some((r) => r.status === 200 && r.url.startsWith(origin)),
+      'the engine should be served by us, not borrowed: ' + JSON.stringify(three)
     ).toBe(true);
     // A missing engine is the one failure the loading screen has to explain.
     await expect(page.locator('#loadErr')).toBeHidden();
+  });
+
+  test('boots and plays with every CDN blocked', async ({ page }) => {
+    /* The Android build has no CDN behind it, cannot assume a network on first
+       run, and should not be fetching code at runtime. Blocking the lot is the
+       only honest way to prove the deployment is self-contained. */
+    const blocked = [];
+    await page.route(/cdnjs|jsdelivr|unpkg|cloudflare/i, (route) => {
+      blocked.push(route.request().url());
+      return route.abort();
+    });
+    await bootLive(page, 'touch=0&room=' + freshRoom());
+    await startPlaying(page);
+
+    await expect(page.locator('#hud')).toHaveClass(/on/);
+    await expect(page.locator('#loadErr')).toBeHidden();
+    expect(await page.evaluate(() => !!window.THREE), 'the engine came off our own origin').toBe(
+      true
+    );
+    expect(await page.evaluate(() => !!window.Peer), 'so did the networking library').toBe(true);
   });
 
   test('loads nothing over plain http', async ({ page, baseURL }) => {

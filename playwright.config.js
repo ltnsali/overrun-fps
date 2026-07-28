@@ -10,9 +10,10 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
    contexts per test, so it gets a project of its own. */
 const LOGIC_SPECS = /(multiplayer|combat)\.spec\.js/;
 const MULTIPLAYER_SPEC = /multiplayer\.spec\.js/;
-/* live.spec.js plays the deployed site over the real internet, so it is never
-   part of this config - it has playwright.live.config.js to itself. */
-const LIVE_SPEC = /live\.spec\.js/;
+/* live.spec.js plays the deployed site over the real internet; package.spec.js
+   and android.spec.js test builds of the game rather than this repository
+   served as-is. Each has a config to itself, so none belong here. */
+const SHIPPED_SPECS = /(live|package|android)\.spec\.js/;
 
 /* WebGL in headless Chromium needs the software rasteriser to be usable. */
 const GL_ARGS = [
@@ -43,12 +44,12 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'phone-portrait',
-      testIgnore: [LOGIC_SPECS, LIVE_SPEC],
+      testIgnore: [LOGIC_SPECS, SHIPPED_SPECS],
       use: { ...devices['Pixel 7'], viewport: { width: 412, height: 915 }, deviceScaleFactor: 2 }
     },
     {
       name: 'phone-landscape',
-      testIgnore: [LOGIC_SPECS, LIVE_SPEC],
+      testIgnore: [LOGIC_SPECS, SHIPPED_SPECS],
       use: {
         ...devices['iPhone 14 Pro Max'],
         browserName: 'chromium',
@@ -58,12 +59,12 @@ module.exports = defineConfig({
     },
     {
       name: 'tablet',
-      testIgnore: [LOGIC_SPECS, LIVE_SPEC],
+      testIgnore: [LOGIC_SPECS, SHIPPED_SPECS],
       use: { ...devices['iPad (gen 7) landscape'], browserName: 'chromium' }
     },
     {
       name: 'desktop',
-      testIgnore: [MULTIPLAYER_SPEC, LIVE_SPEC],
+      testIgnore: [MULTIPLAYER_SPEC, SHIPPED_SPECS],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } }
     },
     {

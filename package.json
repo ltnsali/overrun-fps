@@ -9,10 +9,26 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:live": "playwright test -c playwright.live.config.js",
-    "test:report": "playwright show-report"
+    "test:package": "npm run android && playwright test -c playwright.package.config.js",
+    "test:android": "playwright test -c playwright.android.config.js",
+    "test:report": "playwright show-report",
+    "vendor": "node tools/vendor.js",
+    "www": "node tools/build-www.js",
+    "art": "node tools/art.js",
+    "store:shots": "node tools/screenshots.js",
+    "android": "npm run www && npx cap sync android",
+    "android:install": "npm run android && cd android && gradlew installDebug",
+    "android:release": "npm run android && cd android && gradlew assembleRelease",
+    "android:bundle": "npm run android && cd android && gradlew bundleRelease",
+    "android:open": "npm run android && npx cap open android"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "@playwright/test": "^1.49.0",
+    "peerjs": "^1.5.4",
     "three": "0.128.0"
   }
 }

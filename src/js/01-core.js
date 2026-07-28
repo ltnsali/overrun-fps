@@ -30,9 +30,20 @@ var IS_TOUCH = (function(){
   try{
     if(location.search.indexOf('touch=1') >= 0) return true;
     if(location.search.indexOf('touch=0') >= 0) return false;
+    /* A packaged app is a phone, full stop. Capacitor installs its bridge before
+       our scripts run, so this is safe to ask here. */
+    if(window.Capacitor && window.Capacitor.isNativePlatform &&
+       window.Capacitor.isNativePlatform()) return true;
     var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    var coarse = window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
-    return !!(hasTouch && coarse);
+    var mm = window.matchMedia ? function(q){ return window.matchMedia(q).matches; } : null;
+    var coarse = mm && mm('(pointer:coarse)');
+    /* A WebView reports the pointer that is currently driving it, not what the
+       device can do, so a coarse pointer alone is too strict - it hides the
+       on-screen controls on emulators and mouse-attached phones. The absence of
+       hover is the second, independent way of saying "there is no mouse here",
+       and it keeps touchscreen laptops on the desktop scheme. */
+    var noHover = mm && !mm('(hover:hover)');
+    return !!(hasTouch && (coarse || noHover));
   }catch(e){ return false; }
 })();
 /* Mobile GPUs choke above ~1.5x device pixel ratio. */

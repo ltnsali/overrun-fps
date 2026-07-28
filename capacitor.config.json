@@ -1,0 +1,12 @@
+{
+  "appId": "com.overrun.fps",
+  "appName": "OVERRUN",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#05070c",
+    "allowMixedContent": false
+  }
+}

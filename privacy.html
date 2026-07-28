@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OVERRUN - Privacy Policy</title>
+<style>
+  :root { --bg:#05070c; --accent:#39d7ff; --ink:#c9d6e2; --head:#e8f6ff; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:48px 20px 96px;
+    background:var(--bg); color:var(--ink);
+    font:16px/1.65 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+  main { max-width:760px; margin:0 auto; }
+  h1 { color:var(--head); font-size:32px; letter-spacing:.06em; margin:0 0 4px; }
+  h2 { color:var(--accent); font-size:18px; letter-spacing:.08em; text-transform:uppercase;
+       margin:40px 0 10px; }
+  .sub { color:#7f93a6; font-size:14px; margin:0 0 8px; }
+  a { color:var(--accent); }
+  ul { padding-left:22px; }
+  li { margin:6px 0; }
+  code { background:#0d1620; padding:1px 5px; border-radius:3px; color:var(--head); }
+  footer { margin-top:56px; border-top:1px solid #17222e; padding-top:16px;
+           color:#7f93a6; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>OVERRUN</h1>
+<p class="sub">Privacy Policy &middot; last updated 28 July 2026</p>
+
+<p>OVERRUN is a game. It has no accounts, no sign-in, no advertising and no analytics.
+We do not operate a server that stores anything about you, and we do not collect,
+sell or share personal data. This page explains the few places where data does
+move, so that nothing on it comes as a surprise.</p>
+
+<h2>What stays on your device</h2>
+<p>The game saves a small amount of state locally, using your device's browser
+storage. It never leaves the device and is deleted when you uninstall the app or
+clear its data:</p>
+<ul>
+  <li><code>overrun_set</code> &ndash; your settings (sensitivity, field of view, volume, quality).</li>
+  <li><code>overrun_best</code> &ndash; your best survival score.</li>
+  <li><code>overrun_name</code> &ndash; the callsign you last typed into the multiplayer lobby.</li>
+</ul>
+<p>Your callsign is whatever you type. It is not verified, not linked to you, and
+we suggest you do not use your real name.</p>
+
+<h2>Single player</h2>
+<p>Single player is entirely offline. Every file the game needs is bundled inside
+the app, so it makes no network requests at all while you play alone.</p>
+
+<h2>Multiplayer</h2>
+<p>Deathmatch is peer-to-peer. There is no game server of ours in the middle, and
+no match data is recorded anywhere. While a match is running, the following is
+sent directly to the other players in your room, and only to them:</p>
+<ul>
+  <li>the callsign you chose;</li>
+  <li>your position, aim direction and current weapon;</li>
+  <li>hit, death and score events.</li>
+</ul>
+<p>To open a direct connection, two devices must first learn how to reach each
+other. This uses WebRTC, which means:</p>
+<ul>
+  <li>A <strong>signalling service</strong> introduces the two devices. By default this is the
+      public <a href="https://peerjs.com/" rel="noopener">PeerJS</a> cloud service. It relays the
+      introduction only; it does not see gameplay.</li>
+  <li><strong>STUN servers</strong> are contacted to discover your network address.</li>
+  <li>Your <strong>IP address</strong> is, by the nature of a direct connection, visible to the
+      other players in your room and to those services. This is unavoidable for
+      peer-to-peer play and is the same for any game of this kind. If you would
+      rather not share it, do not use multiplayer.</li>
+</ul>
+<p>Room codes are short and are not secret. Anyone who knows or guesses a room
+code can join that match.</p>
+
+<h2>Permissions</h2>
+<p>The app requests internet and network-state access, and nothing else. It does
+not ask for your location, camera, microphone, contacts, files or identifiers,
+because it does not use them.</p>
+
+<h2>Children</h2>
+<p>OVERRUN is not directed at children. It collects no personal information from
+anyone, including children. If you believe a child has somehow provided us with
+personal data, contact us and we will look into it &mdash; though as described
+above, we hold no data to delete.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be published on this page with a
+new date at the top.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy can be raised as an issue on the project's
+repository at
+<a href="https://github.com/ltnsali/overrun-fps" rel="noopener">github.com/ltnsali/overrun-fps</a>.</p>
+
+<footer>
+  <a href="./">&larr; Back to OVERRUN</a>
+</footer>
+
+</main>
+</body>
+</html>

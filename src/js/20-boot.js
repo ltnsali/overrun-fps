@@ -143,6 +143,7 @@ window.__bootGame = function(){
     cacheUI();
     initInput();
     initMenus();
+    initNativeShell();
     bindSettings();
     initTouch();
     buildViewModels();

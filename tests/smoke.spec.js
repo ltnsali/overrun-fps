@@ -36,6 +36,63 @@ test.describe('boot', () => {
   });
 });
 
+/* The packaged Android app is a WebView, and a WebView reports the pointer of
+   whatever is driving the window rather than what the device is capable of. On
+   an emulator, or a phone with a mouse plugged in, `(pointer:coarse)` is false
+   while touch is still the only way to play - and the on-screen controls are
+   the only controls there are. See bugs/fixed/BUG-006. */
+test.describe('touch detection', () => {
+  /** Answer the two pointer queries however the caller likes, real answers otherwise. */
+  async function fakePointer(page, { coarse, hover, touchPoints }) {
+    await page.addInitScript(
+      ([isCoarse, hasHover, points]) => {
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => points });
+        const real = window.matchMedia.bind(window);
+        const stub = (media, matches) => ({
+          media,
+          matches,
+          onchange: null,
+          addListener() {},
+          removeListener() {},
+          addEventListener() {},
+          removeEventListener() {},
+          dispatchEvent: () => false
+        });
+        window.matchMedia = (q) => {
+          if (/pointer\s*:\s*coarse/.test(q)) return stub(q, isCoarse);
+          if (/hover\s*:\s*hover/.test(q)) return stub(q, hasHover);
+          return real(q);
+        };
+      },
+      [coarse, hover, touchPoints]
+    );
+  }
+
+  test('a touch device that reports a fine pointer still gets the controls', async ({ page }) => {
+    await fakePointer(page, { coarse: false, hover: false, touchPoints: 5 });
+    await bootGame(page);
+    expect(
+      await page.evaluate(() => window.IS_TOUCH),
+      'touch available and no mouse hover - this is a phone'
+    ).toBe(true);
+  });
+
+  test('a desktop with a mouse is still not a touch device', async ({ page }) => {
+    await fakePointer(page, { coarse: false, hover: true, touchPoints: 0 });
+    await bootGame(page);
+    expect(
+      await page.evaluate(() => window.IS_TOUCH),
+      'a mouse-driven machine must keep the desktop control scheme'
+    ).toBe(false);
+  });
+
+  test('a touchscreen laptop keeps the desktop control scheme', async ({ page }) => {
+    await fakePointer(page, { coarse: false, hover: true, touchPoints: 10 });
+    await bootGame(page);
+    expect(await page.evaluate(() => window.IS_TOUCH)).toBe(false);
+  });
+});
+
 test.describe('gameplay', () => {
   test('the menu offers single player and multiplayer', async ({ page }) => {
     await bootGame(page, { query: 'touch=0' });
