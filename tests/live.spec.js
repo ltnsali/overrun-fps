@@ -248,6 +248,18 @@ test.describe('the deployed game plays', () => {
     expectFillsViewport(await measure(page));
   });
 
+  test('Single Player starts the survival waves', async ({ page }) => {
+    // The one mode that needs nothing but the browser: it must work even when
+    // the arena is unreachable, so it is worth checking on the real origin.
+    await bootLive(page, 'touch=0');
+    await page.locator('#btnPlay').click();
+
+    await page.waitForFunction(() => window.G.state === 'playing', undefined, { timeout: 60_000 });
+    expect(await page.evaluate(() => window.G.mode)).toBe('survival');
+    await expect(page.locator('#hud')).toHaveClass(/on/);
+    expectFillsViewport(await measure(page));
+  });
+
   test('the player moves and switches weapons', async ({ page }) => {
     await bootLive(page, 'touch=0&room=' + freshRoom());
     await startPlaying(page);

@@ -4,6 +4,7 @@
 --------------------------------------------------------------------------- */
 var optsReturn = 'menu';
 function initMenus(){
+  document.getElementById('btnPlay').onclick = function(){ AUD.init(); AUD.resume(); startGame('survival'); };
   document.getElementById('btnMulti').onclick = function(){ AUD.init(); AUD.resume(); showScreen('mp'); };
   document.getElementById('btnHelp').onclick = function(){ showScreen('help'); };
   document.getElementById('btnHelpBack').onclick = function(){ showScreen('menu'); };

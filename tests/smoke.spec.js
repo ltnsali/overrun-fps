@@ -37,16 +37,27 @@ test.describe('boot', () => {
 });
 
 test.describe('gameplay', () => {
-  test('the menu offers deathmatch only', async ({ page }) => {
+  test('the menu offers single player and multiplayer', async ({ page }) => {
     await bootGame(page, { query: 'touch=0' });
 
+    await expect(page.locator('#btnPlay')).toBeVisible();
     await expect(page.locator('#btnMulti')).toBeVisible();
     await expect(page.locator('#btnHelp')).toBeVisible();
     await expect(page.locator('#btnOpts')).toBeVisible();
-    // Survival and solo practice are no longer offered.
-    expect(await page.locator('#btnPlay').count(), 'Deploy should be gone').toBe(0);
     await page.locator('#btnMulti').click();
+    // Deathmatch against bots alone would be pretending to be online.
     expect(await page.locator('#btnMpSolo').count(), 'Solo vs Bots should be gone').toBe(0);
+  });
+
+  test('Single Player starts the survival waves', async ({ page }) => {
+    skipIfPortrait(page);
+    await bootGame(page, { query: 'touch=0' });
+    await page.locator('#btnPlay').click();
+
+    await page.waitForFunction(() => window.G.state === 'playing', undefined, { timeout: 15_000 });
+    expect(await page.evaluate(() => window.G.mode)).toBe('survival');
+    await expect(page.locator('#hud')).toHaveClass(/on/);
+    await expect(page.locator('#menu')).not.toHaveClass(/on/);
   });
 
   test('Enter Arena starts a deathmatch and shows the HUD', async ({ page }) => {
