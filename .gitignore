@@ -4,6 +4,9 @@ playwright-report/
 blob-report/
 .playwright/
 
+# Test run output redirected for reading; never part of the repo
+*.log
+
 # Assembled by tools/build-www.js - a copy of files already in the repo
 www/
 
