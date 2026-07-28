@@ -90,19 +90,44 @@ and your position, and it sends them directly to the other players.
 
 ## Graphics
 
-| Asset | File | Size |
+| Asset | File | Spec Play enforces | Ours |
+| --- | --- | --- | --- |
+| App icon | `store/icon-512.png` | 512 × 512, **32-bit PNG with alpha**, ≤ 1024 KB | 512 × 512, `Format32bppArgb`, 187 KB |
+| Feature graphic | `store/feature-1024x500.jpg` | 1024 × 500, JPEG or **24-bit PNG with no alpha** | 1024 × 500 JPEG, `Format24bppRgb`, 76 KB |
+| Phone screenshots | `store/screenshots/*.png` | 2–8, each side 320–3840 px, long side ≤ 2× short | 5 × 1920 × 1080 |
+| Tablet / Chromebook | `store/screenshots-tablet/*.png` | ≥ 4, 1080–7680 px, 16:9 landscape | 5 × 1920 × 1080 |
+
+A canvas always produces PNG with an alpha channel, which is exactly what the
+feature graphic may not have - so `tools/art.js` writes that one as JPEG, which
+Play accepts and which cannot carry alpha. The icon has the opposite rule and
+stays PNG.
+
+Play refuses a screenshot whose long side is more than twice its short one, and a
+Pixel 5 framebuffer is 2340 × 1080 - just over that line. `tools/screenshots.js`
+therefore fits each capture onto a 16:9 canvas rather than cropping into the HUD.
+The same 16:9 result satisfies the large-screen rule, so the tablet set is
+captured the same way from a Pixel Tablet emulator rather than reusing the phone
+images.
+
+---
+
+## Technical requirements, checked rather than assumed
+
+Verified against the official pages on 28 July 2026.
+
+| Requirement | Rule | Status |
 | --- | --- | --- |
-| App icon | `store/icon-512.png` | 512 × 512 |
-| Feature graphic | `store/feature-1024x500.png` | 1024 × 500 |
-| Phone screenshots | `store/screenshots/1-menu.png` … `5-multiplayer.png` | 1920 × 1080 |
-
-Play wants two to eight phone screenshots, each side between 320 px and 3840 px,
-with the long side no more than twice the short one. A Pixel 5 framebuffer is
-2340 × 1080, which is just over that line, so `tools/screenshots.js` fits each
-capture onto a 16:9 canvas rather than cropping into the HUD.
-
-There is no tablet-specific artwork. The game is one landscape layout that
-scales, so the phone screenshots are reused for the 7-inch and 10-inch slots.
+| Target API level | New apps and updates must target **API 36** from **31 Aug 2026** | `targetSdk 36` — in the merged manifest |
+| Publishing format | Android App Bundle, not APK | `npm run android:bundle` → 3.67 MB `.aab` |
+| Play App Signing | Mandatory for new apps | Enrolled at app creation; we hold only the upload key |
+| 16 KB page sizes | Required from **1 Nov 2025** for apps targeting Android 15+ **that ship native code** | The bundle contains **no `.so` files at all**, so this is satisfied by definition |
+| 64-bit | Required | No native code, nothing to be 32-bit |
+| `android:exported` | Explicit on every component with an intent filter (API 31+) | `MainActivity` only, `exported="true"` |
+| Edge to edge | Enforced from API 35 | Handled by `MainActivity`, insets applied explicitly |
+| Foreground services | Must declare a type (API 34+) | None used |
+| Advertising ID | Permission must be declared if used | Not used, not declared |
+| Bundle size | ≤ 200 MB | 3.67 MB |
+| `versionCode` | Must strictly increase | Derived from `package.json`: `1.0.0` → `10000` |
 
 ---
 
@@ -158,6 +183,16 @@ from the main menu on first launch. Nothing to give the reviewer.
 
 ---
 
+## Account deletion
+
+"Does your app allow users to create an account?" — **No.** The callsign typed in
+the multiplayer lobby is not an account: it is not registered anywhere, not
+unique, not authenticated, and never leaves the device except as a label inside a
+match. There is therefore no account to delete and no deletion URL to provide.
+Uninstalling removes the three local values listed in the privacy policy.
+
+---
+
 ## Ads
 
 The app contains no ads. Declare **No**.
@@ -182,3 +217,17 @@ None apply. Answer no to all.
 ## Countries and pricing
 
 Free, available in all countries Play supports. No pricing to set.
+
+---
+
+## Account gates before any of this matters
+
+These are account-level, not app-level, and they are the long pole:
+
+- A Play developer account costs **US$25 once** and requires identity
+  verification. An organisation account additionally needs a **D-U-N-S number**.
+- A **personal** account created after **13 November 2023** must run a **closed
+  test with at least 12 testers who stay opted in for 14 continuous days**, and
+  then apply for production access. An organisation account is exempt.
+- Start this before the build is ready. Everything else here is minutes of work;
+  this part is a fortnight of waiting.

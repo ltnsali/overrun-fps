@@ -117,14 +117,29 @@ Nothing here is drawn by hand, so nothing here can drift.
   512×512 store icon and the 1024×500 feature graphic. The adaptive icon's
   background is the flat colour in
   `android/app/src/main/res/values/ic_launcher_background.xml`.
+
+  The two store graphics have **opposite** rules and it is worth knowing why the
+  code looks inconsistent: Play requires the icon to be a 32-bit PNG *with* an
+  alpha channel, and the feature graphic to be JPEG or 24-bit PNG with *no*
+  alpha. A `<canvas>` always encodes PNG as RGBA, so the feature graphic is
+  written as JPEG - the one format that cannot carry alpha.
 - `npm run store:shots` drives the **installed app** on an attached device and
   captures the menu, a live wave, a firefight, the pause screen and the
   multiplayer lobby. Play refuses a screenshot whose long side is more than twice
   its short one, and a Pixel 5 framebuffer is 2340×1080 — just over the line — so
   each capture is fitted onto a 16:9 canvas rather than cropped into the HUD.
+
+  Large screens get their own set, captured the same way from a Pixel Tablet
+  emulator rather than reusing the phone images:
+
+  ```
+  SHOT_DIR=screenshots-tablet npm run store:shots
+  ```
 - Every answer the Play Console asks for is written down in
-  [store/listing.md](../store/listing.md), and the privacy policy it links to is
-  [privacy.html](../privacy.html), served from GitHub Pages alongside the game.
+  [store/listing.md](../store/listing.md), including the technical requirements
+  checked against the official pages rather than assumed. The privacy policy it
+  links to is [privacy.html](../privacy.html), served from GitHub Pages alongside
+  the game.
 
 ## Testing
 
@@ -167,7 +182,6 @@ Gradle finds the SDK through `android/local.properties`, which is generated and
 git-ignored.
 
 ### What an emulator is and is not
-
 An emulator is a real device for the purposes of this suite — real WebView,
 real lifecycle, real touch dispatch — with three differences the tests account
 for explicitly:

@@ -18,10 +18,11 @@
 
 const { test, expect } = require('@playwright/test');
 /* @playwright/test does not re-export the Android driver; playwright-core does. */
-const { _android: android } = require('playwright-core');
+const { _android: android, chromium } = require('playwright-core');
 
 const PKG = process.env.ANDROID_PKG || 'com.overrun.fps';
 const ACTIVITY = PKG + '/.MainActivity';
+const SITE = process.env.LIVE_URL || 'https://ltnsali.github.io/overrun-fps/';
 
 let device;
 let page;
@@ -280,6 +281,71 @@ test.describe('multiplayer on the device', () => {
       /* A refusal must be a sentence a player can act on, not a stack trace. */
       expect(s.err, 'trace:\n  ' + s.trace.join('\n  ')).toMatch(/[a-z]{4,}.*\./i);
       await expect(page.locator('#mp')).toHaveClass(/on/);
+    }
+  });
+
+  /* The scenario a player actually reported: host on the phone, join from a
+     desktop browser on the deployed site. Whether the two can reach each other
+     depends on the network they are on - a phone behind carrier NAT often
+     cannot be reached at all - so this asserts the two honest outcomes and
+     fails only on the third, which is the bug that was reported: the browser
+     sitting in the lobby forever with nothing to show for it. */
+  test('a browser joining the arena hosted here either meets it or is told why', async () => {
+    test.slow();
+    const room = 'X' + Math.random().toString(36).slice(2, 7).toUpperCase();
+
+    /* The packaged app has no query string of its own, so the room is pinned by
+       navigating the WebView - the same origin, the same bytes. */
+    await page.goto('https://localhost/?room=' + room + '&mptrace=1');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu', { timeout: 60_000 });
+    await press('#btnMulti');
+    await page.locator('#mpName').fill('PHONE');
+    await press('#btnMpStart');
+    await page.waitForFunction(() => window.NET.kind === 'p2p' || !!window.NET.err, undefined, {
+      timeout: 90_000
+    });
+    expect(
+      await page.evaluate(() => window.NET.isHost),
+      'the phone should own an arena nobody else is in'
+    ).toBe(true);
+
+    const browser = await chromium.launch();
+    try {
+      const web = await browser.newPage();
+      await web.goto(SITE + '?touch=0&room=' + room + '&mptrace=1', {
+        waitUntil: 'domcontentloaded'
+      });
+      await web.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
+        timeout: 60_000
+      });
+      await web.locator('#mpName').fill('DESKTOP');
+      await web.locator('#btnMulti').click();
+      await web.locator('#btnMpStart').click();
+
+      /* Met, or refused with a reason. Never still thinking about it. */
+      await web.waitForFunction(
+        () => Object.keys(window.NET.peers).length > 0 || !!window.NET.err,
+        undefined,
+        { timeout: 90_000 }
+      );
+      const w = await web.evaluate(() => ({
+        met: Object.keys(window.NET.peers).length > 0,
+        err: window.NET.err,
+        lobby: document.getElementById('mpErr').textContent,
+        trace: window.NET.trace
+      }));
+      const why = 'browser trace:\n  ' + w.trace.join('\n  ');
+      if (w.met) {
+        await expect
+          .poll(() => page.evaluate(() => NET.conns.length), { timeout: 30_000 })
+          .toBeGreaterThan(0);
+      } else {
+        expect(w.err, why).toMatch(/[a-z]{4,}.*\./i);
+        await expect(web.locator('#mpErr'), why).not.toBeEmpty();
+        expect(await web.evaluate(() => window.G.state), why).toBe('menu');
+      }
+    } finally {
+      await browser.close();
     }
   });
 });

@@ -19,7 +19,9 @@ const { _android: android, chromium } = require('playwright-core');
 
 const PKG = process.env.ANDROID_PKG || 'com.overrun.fps';
 const ACTIVITY = PKG + '/.MainActivity';
-const OUT = path.resolve(__dirname, '..', 'store', 'screenshots');
+/* Play keeps a separate set of screenshots per device type, so the tablet run
+   writes somewhere else:  SHOT_DIR=screenshots-tablet node tools/screenshots.js */
+const OUT = path.resolve(__dirname, '..', 'store', process.env.SHOT_DIR || 'screenshots');
 
 /* Play refuses a screenshot whose long side is more than twice its short one,
    and a Pixel 5 framebuffer is 2340x1080 - just over the line. Rather than crop

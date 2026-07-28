@@ -104,18 +104,18 @@ function drawMark(c, size, inset) {
 `;
 }
 
-async function render(page, width, height, body) {
+async function render(page, width, height, body, mime) {
   return page.evaluate(
-    ({ width, height, body }) => {
+    ({ width, height, body, mime }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const c = canvas.getContext('2d');
       // eslint-disable-next-line no-new-func
       new Function('c', 'w', 'h', 'drawMark', body)(c, width, height, window.drawMark);
-      return canvas.toDataURL('image/png');
+      return canvas.toDataURL(mime || 'image/png', 0.94);
     },
-    { width, height, body }
+    { width, height, body, mime }
   );
 }
 
@@ -237,13 +237,22 @@ const FEATURE = `
   }
   written.push(write(path.join(RES, 'drawable', 'splash.png'), await render(page, 960, 640, SPLASH)));
 
-  /* Play Console: a 512x512 icon and a 1024x500 feature graphic. */
+  /* Play Console. The icon must be a 32-bit PNG *with* alpha; the feature
+     graphic must have *no* alpha at all, and a canvas PNG always carries an
+     alpha channel - so that one is written as JPEG, which Play accepts and
+     which cannot have one. */
   written.push(write(path.join(STORE, 'icon-512.png'), await render(page, 512, 512, TILE)));
-  written.push(write(path.join(STORE, 'feature-1024x500.png'), await render(page, 1024, 500, FEATURE)));
+  written.push(
+    write(
+      path.join(STORE, 'feature-1024x500.jpg'),
+      await render(page, 1024, 500, FEATURE, 'image/jpeg')
+    )
+  );
+  fs.rmSync(path.join(STORE, 'feature-1024x500.png'), { force: true });
 
   await browser.close();
   console.log('art: wrote ' + written.length + ' files');
   console.log('  launcher + adaptive foreground: mipmap-*');
   console.log('  splash: drawable-land-*, drawable-port-*');
-  console.log('  store: store/icon-512.png, store/feature-1024x500.png');
+  console.log('  store: store/icon-512.png, store/feature-1024x500.jpg');
 })();

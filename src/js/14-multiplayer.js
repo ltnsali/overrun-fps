@@ -144,6 +144,7 @@ var MP_RETRY_MS = 1200;
 var MP_JOIN_MS = 3500;        /* nobody answered our offer - treat the slot as dead */
 var MP_HANDSHAKE_MS = 12000;  /* somebody did answer - let ICE finish, it is slow */
 var MP_CLAIM_MS = 5000;
+var MP_ALIVE_MS = 2500;   /* a host that has not spoken by now is not a host */
 var MP_REJOIN_TRIES = 3;  /* goes back to a slot we know is owned, not past it */
 var MP_REJOIN_MS = 600;
 function mpHostId(room, slot){ return MP_HOST_PREFIX + room + (slot ? '-' + slot : ''); }
@@ -170,6 +171,20 @@ function mpPeerOpts(){
    The peer error type is kept and shown, because "could not connect" is useless
    when the cause is a blocked signalling host, a proxy, or WebRTC being off. */
 var _p2pDown = false;
+/* The host answered us through signalling and the data channel still never
+   opened. That is the network refusing a direct connection - symmetric NAT,
+   mobile data, an office firewall - and it is not a thing more knocking fixes. */
+var _iceBlocked = false;
+/* The slot answered, opened a channel, and then never said a word. A live host
+   broadcasts fifteen times a second, so this is a registration that outlived the
+   tab that made it. The id stays registered, so we cannot take it either - the
+   room is simply stuck, and the only useful thing to tell the player is to pick
+   another one. */
+var _deadHost = false;
+var MP_ICE_MSG = 'Reached the arena host, but your network would not allow a direct ' +
+                 'connection. Mobile data and office networks often block this.';
+var MP_DEAD_MSG = 'That arena is held by a session that has gone away. Share a link with ' +
+                  '?room=SOMETHINGELSE and use that instead.';
 function mpP2PNoteErr(e){
   var t = e && e.type;
   if(!t) return;
@@ -203,9 +218,13 @@ function mpP2PAttempt(n, onReady){
   NET.err = '';
   NET.lastErr = '';
   _p2pDown = false;
+  _iceBlocked = false;
   mpTrace('pass ' + n + ' for room ' + NET.room);
   mpP2PSlot(0, function(ok){
-    if(ok || n + 1 >= MP_P2P_TRIES) return onReady(ok);
+    /* A blocked channel and a dead registration both fail the same way every
+       time, so a second pass is a second minute of the player watching nothing
+       happen. */
+    if(ok || _iceBlocked || _deadHost || n + 1 >= MP_P2P_TRIES) return onReady(ok);
     mpRosterText('ARENA DID NOT ANSWER \u00B7 RETRYING\u2026');
     setTimeout(function(){ mpP2PAttempt(n + 1, onReady); }, MP_RETRY_MS);
   });
@@ -227,6 +246,19 @@ function mpP2PSlot(slot, onReady, rejoins){
       mpTrace('claim ' + slot + ' ' + (claimed ? 'ok' : 'failed ' + (why || 'timeout')));
       if(claimed) return onReady(true);
       if(_p2pDown) return onReady(false);
+      /* Somebody owns this slot, they answered our offer, and the channel still
+         would not open. Knocking again gets the same silence, so stop and name
+         the thing that is actually wrong. */
+      if(_iceBlocked){
+        mpTrace('slot ' + slot + ' answered but the channel is blocked - giving up');
+        NET.err = MP_ICE_MSG;
+        return onReady(false);
+      }
+      if(_deadHost){
+        mpTrace('slot ' + slot + ' is registered but nobody is home - giving up');
+        NET.err = MP_DEAD_MSG;
+        return onReady(false);
+      }
       /* We could not join this slot and we could not take it either, so somebody
          is on it - or the server is not answering. Neither is evidence that the
          slot is free, and hosting the next one instead is exactly how one room
@@ -238,6 +270,7 @@ function mpP2PSlot(slot, onReady, rejoins){
          straight over. Still bounded, so a slot pinned by a registration that
          never answers is eventually given up on. */
       if(rejoins < MP_REJOIN_TRIES){
+        mpRosterText('ARENA IS BUSY \u00b7 KNOCKING AGAIN\u2026');
         return setTimeout(function(){
           mpP2PSlot(slot, onReady, rejoins + 1);
         }, MP_REJOIN_MS);
@@ -261,13 +294,15 @@ function mpP2PSlot(slot, onReady, rejoins){
 /* Connect to whoever already owns this slot. `patient` says we have proof that
    somebody is on it, so we are prepared to wait a long time for them. */
 function mpP2PTryJoin(slot, cb, patient){
-  var settled = false, peer, conn = null;
+  var settled = false, peer, conn = null, opened = false, alive = 0;
+  _iceBlocked = false;
+  _deadHost = false;
   try{ peer = new Peer(undefined, mpPeerOpts()); }
   catch(e){ NET.err = 'Online play is not available in this browser.'; return cb(false); }
 
   function fail(){
     if(settled) return;
-    settled = true; clearTimeout(t);
+    settled = true; clearTimeout(t); clearTimeout(alive);
     try{ peer.destroy(); }catch(e){}
     cb(false);
   }
@@ -284,7 +319,16 @@ function mpP2PTryJoin(slot, cb, patient){
   var t = setTimeout(function(){
     var pc = conn && conn.peerConnection;
     if(pc && pc.remoteDescription){
-      t = setTimeout(fail, MP_HANDSHAKE_MS);
+      t = setTimeout(function(){
+        /* They answered and the channel still never opened: the path itself is
+           refused, not merely slow. Remember that, because it is the one failure
+           that knocking again cannot mend. */
+        if(!opened){
+          _iceBlocked = true;
+          mpTrace('slot ' + slot + ' answered, channel never opened');
+        }
+        fail();
+      }, MP_HANDSHAKE_MS);
       return;
     }
     fail();
@@ -297,12 +341,30 @@ function mpP2PTryJoin(slot, cb, patient){
     conn.on('error', fail);
     conn.on('open', function(){
       if(settled) return;
-      settled = true; clearTimeout(t);
-      NET.peer = peer; NET.kind = 'p2p'; NET.isHost = false; NET.conns = [];
-      NET.slot = slot;
-      mpP2PAddConn(conn, false);
-      mpP2PStatus();
-      cb(true);
+      opened = true;
+      clearTimeout(t);
+      /* An open channel is not yet an arena. A registration can outlive its
+         owner: it answers the offer, opens the channel, and then says nothing
+         ever again. A live host broadcasts snapshots fifteen times a second, so
+         silence here means nobody is home - and calling it an arena would strand
+         the player in an empty match that claims to be online. Wait for one word
+         before believing it. */
+      alive = setTimeout(function(){
+        _deadHost = true;
+        mpTrace('slot ' + slot + ' opened but never spoke');
+        fail();
+      }, MP_ALIVE_MS);
+      conn.on('data', function(msg){
+        if(settled || !alive) return;
+        clearTimeout(alive); alive = 0;
+        settled = true;
+        NET.peer = peer; NET.kind = 'p2p'; NET.isHost = false; NET.conns = [];
+        NET.slot = slot;
+        mpP2PAddConn(conn, false);
+        mpP2PStatus();
+        mpRecv(msg);      /* the word that proved it - do not throw it away */
+        cb(true);
+      });
     });
   });
 }

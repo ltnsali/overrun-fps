@@ -157,6 +157,7 @@ test.describe('deathmatch lobby', () => {
           // A real host: answers our offer straight away, but ICE only completes
           // after 6s. Giving up before that leaves both players hosting separate
           // slots of the same room, each waiting for the other.
+          const HELLO = { t: 's', id: 'HOST', n: 'HOST', x: 0, y: 1, z: 0, a: 0, b: 0, hp: 100 };
           window.Peer = function () {
             const on = {};
             this.on = (k, f) => {
@@ -167,7 +168,13 @@ test.describe('deathmatch lobby', () => {
               const ch = {};
               const conn = { peerConnection: {}, on: (k, f) => (ch[k] = f), send: () => {} };
               setTimeout(() => (conn.peerConnection.remoteDescription = { sdp: 'x' }), 100);
-              setTimeout(() => ch.open && ch.open(), 6000);
+              setTimeout(() => {
+                ch.open && ch.open();
+                /* A host that is alive is broadcasting snapshots fifteen times a
+                   second. Silence is how a registration that outlived its owner
+                   is told apart from a real arena, so the fake has to speak. */
+                ch.data && ch.data(HELLO);
+              }, 6000);
               return conn;
             };
             setTimeout(() => on.open && on.open('anon'), 10);
@@ -222,6 +229,7 @@ test.describe('deathmatch lobby', () => {
           // Two players enter at the same moment: both find slot 0 empty, both
           // claim it, and we are the one that loses. The slot is joinable from
           // then on, because the winner is now hosting it.
+          const HELLO = { t: 's', id: 'HOST', n: 'HOST', x: 0, y: 1, z: 0, a: 0, b: 0, hp: 100 };
           let probes = 0;
           window.Peer = function (id) {
             const on = {};
@@ -234,6 +242,7 @@ test.describe('deathmatch lobby', () => {
                 setTimeout(() => {
                   conn.peerConnection.remoteDescription = { sdp: 'x' };
                   ch.open && ch.open();
+                  ch.data && ch.data(HELLO);   /* a live host speaks at once */
                 }, 30);
               }
               return conn; // the first probe finds nobody and stays silent
@@ -269,6 +278,7 @@ test.describe('deathmatch lobby', () => {
              knocking at the same time and misses one offer before answering it.
              Observed live: the second loser gave up on a slot it had just been
              told was owned, and hosted slot 1 alone. */
+          const HELLO = { t: 's', id: 'HOST', n: 'HOST', x: 0, y: 1, z: 0, a: 0, b: 0, hp: 100 };
           let probes = 0;
           window.Peer = function (id) {
             const on = {};
@@ -282,6 +292,7 @@ test.describe('deathmatch lobby', () => {
                 setTimeout(() => {
                   conn.peerConnection.remoteDescription = { sdp: 'x' };
                   ch.open && ch.open();
+                  ch.data && ch.data(HELLO);   /* a live host speaks at once */
                 }, 30);
               }
               return conn;
@@ -315,6 +326,7 @@ test.describe('deathmatch lobby', () => {
              not evidence the slot is free, yet it used to be read as "dead slot"
              and stepped over, so both players ended up hosting their own arena.
              Observed live: two players, slot 0 and slot 1, neither seeing anyone. */
+          const HELLO = { t: 's', id: 'HOST', n: 'HOST', x: 0, y: 1, z: 0, a: 0, b: 0, hp: 100 };
           let probes = 0;
           window.Peer = function (id) {
             const on = {};
@@ -327,6 +339,7 @@ test.describe('deathmatch lobby', () => {
                 setTimeout(() => {
                   conn.peerConnection.remoteDescription = { sdp: 'x' };
                   ch.open && ch.open();
+                  ch.data && ch.data(HELLO);   /* a live host speaks at once */
                 }, 30);
               }
               return conn; // the first probe finds nobody home yet
@@ -358,6 +371,7 @@ test.describe('deathmatch lobby', () => {
              answered too slowly for the short probe deadline, four times running.
              The joiner then hosted slot 1, so one room became two arenas with a
              bot each. A slot we have proof is occupied must never be stepped over. */
+          const HELLO = { t: 's', id: 'HOST', n: 'HOST', x: 0, y: 1, z: 0, a: 0, b: 0, hp: 100 };
           window.Peer = function (id) {
             const on = {};
             this.on = (k, f) => (on[k] = f);
@@ -368,6 +382,7 @@ test.describe('deathmatch lobby', () => {
               setTimeout(() => {
                 conn.peerConnection.remoteDescription = { sdp: 'x' };
                 ch.open && ch.open();
+                ch.data && ch.data(HELLO);   /* a live host speaks at once */
               }, 6000); // slower than the short deadline, well inside the patient one
               return conn;
             };
@@ -618,6 +633,193 @@ test.describe('deathmatch lobby', () => {
 
     await page.keyboard.up('Tab');
     await expect(page.locator('#board')).not.toHaveClass(/on/);
+  });
+});
+
+/**
+ * What happens when signalling works but the connection does not.
+ *
+ * These are the ways a real arena fails, and none of them can be provoked
+ * against the live PeerJS cloud on demand: a host whose registration outlived
+ * it, and a network that lets two peers exchange offers but never lets a data
+ * channel open. Both were found by putting a phone and a browser in one room
+ * and watching the lobby sit there. So the signalling layer is faked - only the
+ * layer the game does not own - and the state machine above it is driven for
+ * real.
+ */
+test.describe('an arena that will not connect', () => {
+  /** Replaces PeerJS. `claim` decides who owns the id, `join` how the host behaves. */
+  const fakePeer = (page, cfg) =>
+    page.addInitScript((cfg) => {
+      const bus = () => {
+        const h = {};
+        return {
+          on(k, f) {
+            (h[k] = h[k] || []).push(f);
+          },
+          emit(k, v) {
+            (h[k] || []).slice().forEach((f) => f(v));
+          }
+        };
+      };
+      window.Peer = function (id) {
+        const peer = bus();
+        peer.destroy = () => {
+          peer.dead = true;
+        };
+        peer.disconnect = () => {};
+        setTimeout(() => {
+          if (peer.dead) return;
+          if (id && cfg.claim === 'taken') peer.emit('error', { type: 'unavailable-id' });
+          else peer.emit('open', id || 'client');
+        }, 20);
+        peer.connect = () => {
+          const conn = bus();
+          conn.open = false;
+          conn.peerConnection = { remoteDescription: null };
+          conn.send = () => {};
+          conn.close = () => {};
+          if (cfg.join === 'nobody') return conn; /* the slot really is empty */
+          setTimeout(() => {
+            /* The host answered our offer - from here on somebody is there. */
+            conn.peerConnection.remoteDescription = { type: 'answer' };
+            if (cfg.join === 'ice') return; /* ...and the channel never opens */
+            conn.open = true;
+            conn.emit('open');
+            if (cfg.join === 'live') {
+              setTimeout(
+                () =>
+                  conn.emit('data', {
+                    t: 's',
+                    id: 'HOSTPEER',
+                    n: 'HOST',
+                    x: 0,
+                    y: 1,
+                    z: 0,
+                    a: 0,
+                    b: 0,
+                    hp: 100
+                  }),
+                30
+              );
+            }
+          }, 40);
+          return conn;
+        };
+        return peer;
+      };
+    }, cfg);
+
+  /** Boot with the fake in place and press Enter Arena. Returns what happened. */
+  async function enter(page, cfg) {
+    await fakePeer(page, cfg);
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=p2p&mptrace=1');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    return page.evaluate(() => {
+      /* The real deadlines are tuned for a slow phone on a slow network. The
+         logic under test is the same at a tenth of the wait. */
+      window.MP_JOIN_MS = 300;
+      window.MP_HANDSHAKE_MS = 600;
+      window.MP_CLAIM_MS = 400;
+      window.MP_ALIVE_MS = 250;
+      window.MP_REJOIN_MS = 60;
+      window.MP_RETRY_MS = 60;
+      const began = Date.now();
+      return new Promise((resolve) =>
+        window.mpConnect('p2p', 'TESTRM', 'ME', (ok) =>
+          resolve({
+            ok,
+            ms: Date.now() - began,
+            kind: window.NET.kind,
+            host: window.NET.isHost,
+            err: window.NET.err,
+            knocks: window.NET.trace.filter((l) => /slot \d+ try/.test(l)).length,
+            trace: window.NET.trace
+          })
+        )
+      );
+    });
+  }
+
+  test('a live host is joined and its players show up', async ({ page }) => {
+    const r = await enter(page, { claim: 'taken', join: 'live' });
+    expect(r, r.trace && r.trace.join('\n')).toMatchObject({ ok: true, host: false });
+    await page.waitForFunction(() => Object.keys(window.NET.peers).length === 1, undefined, {
+      timeout: 10_000
+    });
+  });
+
+  test('an empty arena is claimed and hosted', async ({ page }) => {
+    const r = await enter(page, { claim: 'ok', join: 'nobody' });
+    expect(r, r.trace && r.trace.join('\n')).toMatchObject({ ok: true, host: true });
+  });
+
+  /* A registration that outlived its owner answers the offer and opens a channel,
+     then says nothing ever again. Treating that as an arena drops the player into
+     an empty match that calls itself online - which is worse than a refusal,
+     because there is nothing to react to. */
+  test('a host that opens a channel and then says nothing is not an arena', async ({ page }) => {
+    const r = await enter(page, { claim: 'ok', join: 'silent' });
+    expect(r, r.trace && r.trace.join('\n')).toMatchObject({ ok: true, host: true });
+    expect(await page.evaluate(() => Object.keys(window.NET.peers).length)).toBe(0);
+  });
+
+  test('a dead host on an id we cannot take is refused, not faked', async ({ page }) => {
+    const r = await enter(page, { claim: 'taken', join: 'silent' });
+    expect(r.ok, 'trace:\n' + (r.trace || []).join('\n')).toBe(false);
+    expect(r.err).toMatch(/[a-z]{4,}.*\./i);
+  });
+
+  /* A registration that outlived its tab will be just as dead on the fourth
+     knock as on the first, and the id stays taken - so the room is stuck and the
+     only useful answer is "use a different one", said quickly. */
+  test('a stuck room is named and abandoned, not knocked on four times', async ({ page }) => {
+    const r = await enter(page, { claim: 'taken', join: 'silent' });
+    expect(r.err, 'the player needs a way out, not just a failure').toMatch(/room=/i);
+    expect(r.knocks, 'a dead registration does not come back to life').toBeLessThanOrEqual(2);
+  });
+
+  /* The offer is answered, so the host is there and reachable through
+     signalling; the data channel still never opens. That is the network
+     refusing a direct connection - symmetric NAT, mobile data, an office
+     firewall - and no amount of knocking on the same door will change it. */
+  test('a blocked direct connection is named, once, instead of retried forever', async ({
+    page
+  }) => {
+    const r = await enter(page, { claim: 'taken', join: 'ice' });
+    expect(r.ok, 'trace:\n' + (r.trace || []).join('\n')).toBe(false);
+    expect(r.err, 'the player must be told what is actually wrong').toMatch(
+      /direct connection/i
+    );
+    expect(r.knocks, 'retrying a blocked path cannot help').toBeLessThanOrEqual(2);
+  });
+
+  test('the lobby stays open and says why, rather than hanging', async ({ page }) => {
+    await fakePeer(page, { claim: 'taken', join: 'ice' });
+    await useLocalThree(page);
+    await page.goto('/?touch=0&net=p2p&mptrace=1');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    await page.evaluate(() => {
+      window.MP_JOIN_MS = 300;
+      window.MP_HANDSHAKE_MS = 600;
+      window.MP_CLAIM_MS = 400;
+      window.MP_ALIVE_MS = 250;
+      window.MP_REJOIN_MS = 60;
+      window.MP_RETRY_MS = 60;
+    });
+
+    await page.locator('#btnMulti').click();
+    await page.locator('#mpName').fill('ME');
+    await page.locator('#btnMpStart').click();
+
+    /* Left in the lobby, told what happened, and able to try again. */
+    await expect(page.locator('#mpErr')).toContainText(/direct connection/i, {
+      timeout: 20_000
+    });
+    await expect(page.locator('#mp')).toHaveClass(/on/);
+    await expect(page.locator('#btnMpStart')).toBeVisible();
+    expect(await page.evaluate(() => window.G.state)).toBe('menu');
   });
 });
 
