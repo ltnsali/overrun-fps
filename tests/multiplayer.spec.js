@@ -673,20 +673,24 @@ test.describe('an arena that will not connect', () => {
           if (id && cfg.claim === 'taken') peer.emit('error', { type: 'unavailable-id' });
           else peer.emit('open', id || 'client');
         }, 20);
-        peer.connect = () => {
+        peer.connect = (hostId) => {
           const conn = bus();
           conn.open = false;
           conn.peerConnection = { remoteDescription: null };
           conn.send = () => {};
           conn.close = () => {};
-          if (cfg.join === 'nobody') return conn; /* the slot really is empty */
+          /* liveFrom pins which slot actually has somebody on it; the ids are
+             `overrun-v1-ROOM`, `...-1`, `...-2`. */
+          const slot = Number((/-(\d+)$/.exec(hostId) || [0, 0])[1]);
+          const mode = cfg.liveFrom !== undefined && slot >= cfg.liveFrom ? 'live' : cfg.join;
+          if (mode === 'nobody') return conn; /* the slot really is empty */
           setTimeout(() => {
             /* The host answered our offer - from here on somebody is there. */
             conn.peerConnection.remoteDescription = { type: 'answer' };
-            if (cfg.join === 'ice') return; /* ...and the channel never opens */
+            if (mode === 'ice') return; /* ...and the channel never opens */
             conn.open = true;
             conn.emit('open');
-            if (cfg.join === 'live') {
+            if (mode === 'live') {
               setTimeout(
                 () =>
                   conn.emit('data', {
@@ -733,6 +737,7 @@ test.describe('an arena that will not connect', () => {
             ms: Date.now() - began,
             kind: window.NET.kind,
             host: window.NET.isHost,
+            slot: window.NET.slot,
             err: window.NET.err,
             knocks: window.NET.trace.filter((l) => /slot \d+ try/.test(l)).length,
             trace: window.NET.trace
@@ -772,12 +777,21 @@ test.describe('an arena that will not connect', () => {
   });
 
   /* A registration that outlived its tab will be just as dead on the fourth
-     knock as on the first, and the id stays taken - so the room is stuck and the
-     only useful answer is "use a different one", said quickly. */
+     knock as on the first, and the id stays taken - so it is stepped over rather
+     than knocked on again. Only when every slot in the room is a ghost is there
+     nothing left to do but say so, and point at a way out. */
   test('a stuck room is named and abandoned, not knocked on four times', async ({ page }) => {
     const r = await enter(page, { claim: 'taken', join: 'silent' });
     expect(r.err, 'the player needs a way out, not just a failure').toMatch(/room=/i);
-    expect(r.knocks, 'a dead registration does not come back to life').toBeLessThanOrEqual(2);
+    expect(r.knocks, 'one knock per slot, none of them repeated').toBeLessThanOrEqual(3);
+  });
+
+  /* The common case, and the one that keeps the default arena usable: one dead
+     registration must not lock everybody out of the room. */
+  test('a ghost on the first slot is stepped over, not treated as the room', async ({ page }) => {
+    const r = await enter(page, { claim: 'taken', join: 'silent', liveFrom: 1 });
+    expect(r, r.trace && r.trace.join('\n')).toMatchObject({ ok: true, host: false });
+    expect(r.slot, 'the arena is on the next slot along').toBe(1);
   });
 
   /* The offer is answered, so the host is there and reachable through

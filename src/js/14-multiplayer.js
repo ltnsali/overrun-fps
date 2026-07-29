@@ -181,6 +181,9 @@ var _iceBlocked = false;
    room is simply stuck, and the only useful thing to tell the player is to pick
    another one. */
 var _deadHost = false;
+/* Whether any slot in this pass turned out to be a ghost, so the message at the
+   end of the ladder can say which kind of failure it was. */
+var _deadSeen = false;
 var MP_ICE_MSG = 'Reached the arena host, but your network would not allow a direct ' +
                  'connection. Mobile data and office networks often block this.';
 var MP_DEAD_MSG = 'That arena is held by a session that has gone away. Share a link with ' +
@@ -219,12 +222,13 @@ function mpP2PAttempt(n, onReady){
   NET.lastErr = '';
   _p2pDown = false;
   _iceBlocked = false;
+  _deadSeen = false;
   mpTrace('pass ' + n + ' for room ' + NET.room);
   mpP2PSlot(0, function(ok){
-    /* A blocked channel and a dead registration both fail the same way every
-       time, so a second pass is a second minute of the player watching nothing
-       happen. */
-    if(ok || _iceBlocked || _deadHost || n + 1 >= MP_P2P_TRIES) return onReady(ok);
+    /* A blocked channel and a room that is entirely ghosted both fail the same
+       way every time, so a second pass is a second minute of the player
+       watching nothing happen. */
+    if(ok || _iceBlocked || _deadSeen || n + 1 >= MP_P2P_TRIES) return onReady(ok);
     mpRosterText('ARENA DID NOT ANSWER \u00B7 RETRYING\u2026');
     setTimeout(function(){ mpP2PAttempt(n + 1, onReady); }, MP_RETRY_MS);
   });
@@ -233,8 +237,9 @@ function mpP2PAttempt(n, onReady){
 function mpP2PSlot(slot, onReady, rejoins){
   rejoins = rejoins || 0;
   if(slot >= MP_P2P_SLOTS){
-    NET.err = NET.err || ('Could not reach the arena' +
-      (NET.lastErr ? ' (' + NET.lastErr + ')' : '') + '. Check your connection and try again.');
+    NET.err = NET.err || (_deadSeen ? MP_DEAD_MSG :
+      ('Could not reach the arena' +
+       (NET.lastErr ? ' (' + NET.lastErr + ')' : '') + '. Check your connection and try again.'));
     return onReady(false);
   }
   mpTrace('slot ' + slot + ' try' + (rejoins ? ' (retry ' + rejoins + ')' : ''));
@@ -255,9 +260,14 @@ function mpP2PSlot(slot, onReady, rejoins){
         return onReady(false);
       }
       if(_deadHost){
-        mpTrace('slot ' + slot + ' is registered but nobody is home - giving up');
-        NET.err = MP_DEAD_MSG;
-        return onReady(false);
+        /* The slot is registered to something that answers and then says
+           nothing, and the id stays taken so we cannot have it either. That is
+           precisely what the extra slots are for: step over it rather than
+           knocking on a door nobody is behind. A host that is merely busy still
+           broadcasts, so this never steps over a real one. */
+        mpTrace('slot ' + slot + ' is registered but nobody is home - stepping over');
+        _deadSeen = true;
+        return mpP2PSlot(slot + 1, onReady);
       }
       /* We could not join this slot and we could not take it either, so somebody
          is on it - or the server is not answering. Neither is evidence that the

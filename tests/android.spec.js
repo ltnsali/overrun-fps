@@ -318,8 +318,9 @@ test.describe('multiplayer on the device', () => {
       await web.waitForFunction(() => window.G && window.G.state === 'menu', undefined, {
         timeout: 60_000
       });
-      await web.locator('#mpName').fill('DESKTOP');
+      /* The callsign field only exists once the lobby is open. */
       await web.locator('#btnMulti').click();
+      await web.locator('#mpName').fill('DESKTOP');
       await web.locator('#btnMpStart').click();
 
       /* Met, or refused with a reason. Never still thinking about it. */
