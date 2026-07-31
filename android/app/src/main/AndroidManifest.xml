@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- appCategory is not cosmetic here. From Android 16 (API 36) the platform
+         ignores android:screenOrientation on any display wider than sw600dp -
+         a tablet would drop a landscape-only shooter into portrait and straight
+         onto the rotate gate. Games are the documented exception to that rule,
+         and this flag is how a game says so. It also replaces the deprecated
+         android:isGame and groups the app correctly in battery/data usage. -->
     <application
         android:allowBackup="true"
+        android:appCategory="game"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

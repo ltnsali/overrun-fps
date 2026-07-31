@@ -176,6 +176,39 @@ test.describe('the installed app', () => {
     await expect(page.locator('#rotate')).toBeHidden();
   });
 
+  /* From Android 16 the platform ignores android:screenOrientation on any
+     display at least 600dp wide - every tablet and unfolded foldable - unless
+     the app declares itself a game with android:appCategory. Without it this
+     game opens in portrait on a tablet and the player meets the rotate gate
+     instead of the menu, which reads as simply broken.
+
+     Measured, not assumed: with the attribute removed this device reports an
+     800x1224 window, and with it 800x600. The large-screen behaviour is forced
+     on here because a stock emulator does not always enable it, so the test is
+     the same on a phone as on a tablet. */
+  test('holds landscape even where the platform overrides orientation', async () => {
+    const was = String(await device.shell('settings get system user_rotation')).trim() || '0';
+    await device.shell('wm set-ignore-orientation-request true');
+    await device.shell('settings put system accelerometer_rotation 0');
+    try {
+      /* A tablet's natural orientation is landscape, so 90 degrees is portrait. */
+      await device.shell('settings put system user_rotation 1');
+      await new Promise((r) => setTimeout(r, 1500));
+      page = await launch();
+
+      const vp = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+      expect(
+        vp.w,
+        'a game must keep its landscape lock on a large screen: ' + JSON.stringify(vp)
+      ).toBeGreaterThan(vp.h);
+    } finally {
+      await device.shell('settings put system user_rotation ' + was);
+      await device.shell('wm set-ignore-orientation-request false');
+      await new Promise((r) => setTimeout(r, 1500));
+      page = await launch();
+    }
+  });
+
   test('shows the touch controls, not a keyboard prompt', async () => {
     await press('#btnPlay');
     await page.waitForFunction(() => window.G.state === 'playing', undefined, { timeout: 30_000 });

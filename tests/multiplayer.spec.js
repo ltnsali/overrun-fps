@@ -125,8 +125,37 @@ test.describe('deathmatch lobby', () => {
     expect(await page.evaluate(() => window.mpRoomFromUrl())).toBe('ARENA');
   });
 
-  test('a shared ?room= link pins a private arena', async ({ page }) => {
+  /* Third-party signalling is the single point of failure: measured from a real
+     browser on a corporate network, *.peerjs.com is blocked outright while every
+     other host the game touches loads fine. A relay of our own is the way out,
+     and it has to be reachable from the packaged app too - which has no query
+     string at all. */
+  test('a relay built into the build is used, and ?relay= still overrides it', async ({ page }) => {
     await useLocalThree(page);
+    await page.goto('/?touch=0');
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+
+    // Nothing configured: only a plain-http page may guess at a local relay.
+    expect(await page.evaluate(() => window.mpRelayUrl())).toBe('ws://127.0.0.1:8787');
+
+    expect(
+      await page.evaluate(() => {
+        window.MP_RELAY = 'wss://relay.example/';
+        return window.mpRelayUrl();
+      })
+    ).toBe('wss://relay.example/');
+
+    await page.goto('/?touch=0&relay=' + encodeURIComponent('ws://pinned:9999'));
+    await page.waitForFunction(() => window.G && window.G.state === 'menu');
+    expect(
+      await page.evaluate(() => {
+        window.MP_RELAY = 'wss://relay.example/';
+        return window.mpRelayUrl();
+      })
+    ).toBe('ws://pinned:9999');
+  });
+
+  test('a shared ?room= link pins a private arena', async ({ page }) => {    await useLocalThree(page);
     await page.goto('/?touch=0&room=squad7');
     await page.waitForFunction(() => window.G && window.G.state === 'menu');
     expect(await page.evaluate(() => window.mpRoomFromUrl())).toBe('SQUAD7');

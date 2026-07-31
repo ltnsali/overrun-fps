@@ -159,51 +159,163 @@ const SPLASH = `
   c.restore();
 `;
 
+/* The Play Store icon. Same mark as the launcher tile, but on a lifted plate:
+   Play's own icon guidance is to fill the whole square with an opaque brand
+   colour, and the game's #05070c disappears into the Store's dark chrome.
+   Play masks the corners at 30% radius and adds its own drop shadow, so the
+   artwork stays a full square with neither. */
+const STORE_ICON = `
+  var plate = c.createRadialGradient(w * 0.5, h * 0.42, w * 0.04, w * 0.5, h * 0.52, w * 0.8);
+  plate.addColorStop(0, '#17475f');
+  plate.addColorStop(0.55, '#0c2637');
+  plate.addColorStop(1, '#06121d');
+  c.fillStyle = plate;
+  c.fillRect(0, 0, w, h);
+  drawMark(c, w, 0.34);
+`;
+
+/* The feature graphic is a storefront banner, not a second app icon. Play asks
+   for the game experience rather than repeated branding, for the focal point in
+   the middle with the left and right edges treated as cutoff zones, and for
+   colour with some life in it - pure black and dark grey sink into the Store's
+   own background. So: the arena floor in perspective, a wave closing in, and
+   the wordmark centred over the top of it. */
 const FEATURE = `
-  var g = c.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0, '#05070c');
-  g.addColorStop(0.55, '#0b1a26');
-  g.addColorStop(1, '#05070c');
-  c.fillStyle = g;
+  var cx = w / 2;
+  var horizon = h * 0.38;
+
+  var sky = c.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, '#0b2036');
+  sky.addColorStop(1, '#15586f');
+  c.fillStyle = sky;
+  c.fillRect(0, 0, w, horizon);
+
+  var ground = c.createLinearGradient(0, horizon, 0, h);
+  ground.addColorStop(0, '#12384d');
+  ground.addColorStop(1, '#071722');
+  c.fillStyle = ground;
+  c.fillRect(0, horizon, w, h - horizon);
+
+  var haze = c.createRadialGradient(cx, horizon, 0, cx, horizon, w * 0.45);
+  haze.addColorStop(0, 'rgba(57,215,255,0.55)');
+  haze.addColorStop(0.45, 'rgba(57,215,255,0.14)');
+  haze.addColorStop(1, 'rgba(57,215,255,0)');
+  c.fillStyle = haze;
   c.fillRect(0, 0, w, h);
 
-  /* Faint arena grid, the same idea as the floor texture in game. */
-  c.strokeStyle = 'rgba(57,215,255,0.10)';
-  c.lineWidth = 1;
-  for (var x = 0; x <= w; x += 40) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
-  for (var y = 0; y <= h; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+  /* Arena walls, kept out at the edges where Play expects background only. */
+  function wall(bx, bw, bh) {
+    c.fillStyle = 'rgba(6,22,32,0.90)';
+    c.fillRect(bx, horizon - bh, bw, bh);
+    c.strokeStyle = 'rgba(57,215,255,0.30)';
+    c.lineWidth = Math.max(1, h * 0.004);
+    c.strokeRect(bx, horizon - bh, bw, bh);
+  }
+  wall(-w * 0.03, w * 0.15, h * 0.20);
+  wall(w * 0.88, w * 0.15, h * 0.24);
 
-  /* Play crops this graphic on some surfaces, so nothing important goes near
-     the edges: the mark sits a tenth of the way in and the text ends a tenth
-     from the right. */
-  var markBox = h * 0.86;
-  c.save();
-  c.translate(w * 0.06, (h - markBox) / 2);
-  drawMark(c, markBox, 0.30);
-  c.restore();
+  /* The wave, out at the far end of the arena. Blocky silhouettes with the
+     same red eye the enemies carry in game. They stay small and above the
+     horizon line so the wordmark below them is never fighting for space. */
+  function hostile(hx, scale) {
+    var bh = h * 0.24 * scale;
+    var bw = bh * 0.44;
+    var y = horizon + h * 0.012 * scale;
+    c.save();
+    c.globalAlpha = 0.45;
+    c.fillStyle = '#03101a';
+    c.beginPath();
+    c.ellipse(hx, y, bw * 1.05, bh * 0.05, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    c.fillStyle = 'rgba(3,12,19,0.96)';
+    c.fillRect(hx - bw * 0.78, y - bh * 0.74, bw * 0.28, bh * 0.44);
+    c.fillRect(hx + bw * 0.50, y - bh * 0.74, bw * 0.28, bh * 0.44);
+    c.fillRect(hx - bw / 2, y - bh, bw, bh);
+    c.fillRect(hx - bw * 0.34, y - bh * 1.30, bw * 0.68, bh * 0.32);
+    c.save();
+    c.shadowColor = '#ff3322';
+    c.shadowBlur = bh * 0.40;
+    c.fillStyle = '#ff3b2a';
+    c.fillRect(hx - bw * 0.22, y - bh * 1.19, bw * 0.44, bh * 0.08);
+    c.restore();
+  }
+  hostile(w * 0.115, 1.00);
+  hostile(w * 0.215, 0.74);
+  hostile(w * 0.305, 0.52);
+  hostile(w * 0.385, 0.36);
+  hostile(w * 0.885, 0.94);
+  hostile(w * 0.790, 0.68);
+  hostile(w * 0.705, 0.47);
+  hostile(w * 0.625, 0.33);
 
-  var textLeft = w * 0.06 + markBox + w * 0.03;
-  var textRoom = w * 0.94 - textLeft;
+  /* Arena floor: verticals converging on the vanishing point, horizontals
+     spaced by a square law so the grid reads as distance. Kept coarse - Play
+     warns that fine detail is lost at the sizes this is shown at. */
+  c.strokeStyle = '${ACCENT}';
+  c.lineWidth = Math.max(1, h * 0.005);
+  for (var i = -13; i <= 13; i++) {
+    c.globalAlpha = 0.32 - Math.abs(i) * 0.017;
+    c.beginPath();
+    c.moveTo(cx + i * (w * 0.011), horizon);
+    c.lineTo(cx + i * (w * 0.26), h);
+    c.stroke();
+  }
+  for (var k = 1; k <= 8; k++) {
+    var t = k / 8;
+    c.globalAlpha = 0.09 + 0.26 * t;
+    var gy = horizon + (h - horizon) * t * t;
+    c.beginPath();
+    c.moveTo(0, gy);
+    c.lineTo(w, gy);
+    c.stroke();
+  }
+  c.globalAlpha = 1;
 
-  /* Pick the largest type that still fits the room left over. */
+  /* The near floor is dropped back so the type on top of it stays legible. */
+  var scrim = c.createLinearGradient(0, horizon, 0, h);
+  scrim.addColorStop(0, 'rgba(5,16,25,0)');
+  scrim.addColorStop(0.45, 'rgba(5,16,25,0.55)');
+  scrim.addColorStop(1, 'rgba(5,16,25,0.72)');
+  c.fillStyle = scrim;
+  c.fillRect(0, horizon, w, h - horizon);
+
+  /* Type, centred and kept well inside the cutoff zones. */
+  var room = w * 0.58;
   function fit(text, weight, ideal) {
     var size = ideal;
     do {
       c.font = weight + ' ' + Math.round(size) + 'px "Segoe UI", Arial, sans-serif';
-      if (c.measureText(text).width <= textRoom) break;
+      if (c.measureText(text).width <= room) break;
       size -= 1;
     } while (size > 8);
-    return size;
   }
 
+  c.textAlign = 'center';
   c.textBaseline = 'middle';
-  fit('OVERRUN', '700', h * 0.26);
-  c.fillStyle = '#e8f6ff';
-  c.fillText('OVERRUN', textLeft, h * 0.42);
 
-  fit('SURVIVE THE WAVES \\u00b7 FRAG YOUR FRIENDS', '600', h * 0.085);
+  fit('OVERRUN', '700', h * 0.26);
+  c.save();
+  c.shadowColor = 'rgba(4,14,22,0.9)';
+  c.shadowBlur = h * 0.10;
+  c.fillStyle = '#eaf8ff';
+  c.fillText('OVERRUN', cx, h * 0.63);
+  c.restore();
+
+  fit('SURVIVE THE WAVES \\u00b7 FRAG YOUR FRIENDS', '600', h * 0.078);
+  c.save();
+  c.shadowColor = 'rgba(4,14,22,0.9)';
+  c.shadowBlur = h * 0.07;
   c.fillStyle = '${ACCENT}';
-  c.fillText('SURVIVE THE WAVES \\u00b7 FRAG YOUR FRIENDS', textLeft, h * 0.63);
+  c.fillText('SURVIVE THE WAVES \\u00b7 FRAG YOUR FRIENDS', cx, h * 0.85);
+  c.restore();
+
+  /* Vignette, so the edges fall away instead of ending on a hard crop. */
+  var vig = c.createRadialGradient(cx, h * 0.5, w * 0.22, cx, h * 0.5, w * 0.64);
+  vig.addColorStop(0, 'rgba(4,12,20,0)');
+  vig.addColorStop(1, 'rgba(4,12,20,0.55)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, w, h);
 `;
 
 (async () => {
@@ -241,7 +353,7 @@ const FEATURE = `
      graphic must have *no* alpha at all, and a canvas PNG always carries an
      alpha channel - so that one is written as JPEG, which Play accepts and
      which cannot have one. */
-  written.push(write(path.join(STORE, 'icon-512.png'), await render(page, 512, 512, TILE)));
+  written.push(write(path.join(STORE, 'icon-512.png'), await render(page, 512, 512, STORE_ICON)));
   written.push(
     write(
       path.join(STORE, 'feature-1024x500.jpg'),

@@ -87,15 +87,35 @@ function mpBuildSeededWorld(room){
 
 /* ---- transport ---------------------------------------------------------- */
 
-/* An explicit ?relay= always wins. Otherwise a relay can only be guessed for pages
-   served over plain http (localhost / LAN dev): an https page is not allowed to open
-   a ws:// socket, and a static host such as GitHub Pages has no relay behind it at
-   all. Returning null means "no server here" so the caller can use peer-to-peer. */
+/* A relay of our own, if there is one.
+
+   Signalling through a third party is this game's single point of failure. It is
+   not hypothetical: measured from a real browser on a corporate network,
+   *.peerjs.com is blocked outright while cdnjs, unpkg, jsdelivr and the game's
+   own origin all load fine - so multiplayer is dead while everything else works.
+   A phone behind carrier NAT hits the same wall from the other direction, with
+   signalling fine and the data channel refused.
+
+   Pointing this at a wss:// server/relay.js removes both problems at once: one
+   host, no NAT traversal, no third party. It lives here rather than in the query
+   string because a packaged app does not have one.
+
+   It stays empty until there is a relay that outlives a single session. A URL
+   that has stopped answering is worse than none at all: the game would wait on
+   it before falling back, on every match, for every player. */
+var MP_RELAY = '';
+
+/* An explicit ?relay= always wins, then a relay built into this copy of the game.
+   Otherwise a relay can only be guessed for pages served over plain http
+   (localhost / LAN dev): an https page is not allowed to open a ws:// socket, and
+   a static host such as GitHub Pages has no relay behind it at all. Returning
+   null means "no server here" so the caller can use peer-to-peer. */
 function mpRelayUrl(){
   try{
     var q = new URLSearchParams(location.search).get('relay');
     if(q) return q;
   }catch(e){}
+  if(MP_RELAY) return MP_RELAY;
   if(location.protocol !== 'http:') return null;
   return 'ws://' + (location.hostname || '127.0.0.1') + ':8787';
 }

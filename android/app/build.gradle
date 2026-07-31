@@ -41,7 +41,11 @@ android {
     signingConfigs {
         release {
             if (uploadKeystore) {
-                storeFile file(uploadKeystore)
+                /* Resolved against the android/ project root, not this module -
+                   file() here would look inside android/app/ and the keystore
+                   lives next to keystore.properties. An absolute path from the
+                   environment still works unchanged. */
+                storeFile rootProject.file(uploadKeystore)
                 storePassword signingValue('OVERRUN_KEYSTORE_PASSWORD', 'storePassword')
                 keyAlias signingValue('OVERRUN_KEY_ALIAS', 'keyAlias')
                 keyPassword signingValue('OVERRUN_KEY_PASSWORD', 'keyPassword')
