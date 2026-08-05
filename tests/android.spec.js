@@ -188,12 +188,26 @@ test.describe('the installed app', () => {
      the same on a phone as on a tablet. */
   test('holds landscape even where the platform overrides orientation', async () => {
     const was = String(await device.shell('settings get system user_rotation')).trim() || '0';
+
+    /* Rotation is asynchronous: the setting returns at once but the display
+       animates into place afterwards. Sleeping a fixed guess and hoping is what
+       made this test break the one after it - clicks landed on stale pixels.
+       Wait for the display itself to report the shape we asked for. */
+    const displaySettles = async (wantLandscape) => {
+      for (let i = 0; i < 40; i++) {
+        const m = String(await device.shell('dumpsys window displays')).match(/cur=(\d+)x(\d+)/);
+        if (m && Number(m[1]) > Number(m[2]) === wantLandscape) return true;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return false;
+    };
+
     await device.shell('wm set-ignore-orientation-request true');
     await device.shell('settings put system accelerometer_rotation 0');
     try {
       /* A tablet's natural orientation is landscape, so 90 degrees is portrait. */
       await device.shell('settings put system user_rotation 1');
-      await new Promise((r) => setTimeout(r, 1500));
+      expect(await displaySettles(false), 'display never turned portrait').toBe(true);
       page = await launch();
 
       const vp = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
@@ -204,7 +218,7 @@ test.describe('the installed app', () => {
     } finally {
       await device.shell('settings put system user_rotation ' + was);
       await device.shell('wm set-ignore-orientation-request false');
-      await new Promise((r) => setTimeout(r, 1500));
+      await displaySettles(true);
       page = await launch();
     }
   });
