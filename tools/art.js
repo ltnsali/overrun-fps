@@ -104,18 +104,18 @@ function drawMark(c, size, inset) {
 `;
 }
 
-async function render(page, width, height, body, mime) {
+async function render(page, width, height, body, mime, quality) {
   return page.evaluate(
-    ({ width, height, body, mime }) => {
+    ({ width, height, body, mime, quality }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const c = canvas.getContext('2d');
       // eslint-disable-next-line no-new-func
       new Function('c', 'w', 'h', 'drawMark', body)(c, width, height, window.drawMark);
-      return canvas.toDataURL(mime || 'image/png', 0.94);
+      return canvas.toDataURL(mime || 'image/png', quality || 0.94);
     },
-    { width, height, body, mime }
+    { width, height, body, mime, quality }
   );
 }
 
@@ -318,6 +318,142 @@ const FEATURE = `
   c.fillRect(0, 0, w, h);
 `;
 
+/* ---------------------------------------------------------------------------
+   Play developer page. These two belong to the publisher, not to any one app,
+   and Play shows them next to the app's own icon - so they deliberately share
+   the palette and the reticle motif without repeating the helmet.
+
+   Both are written as JPEG. Play asks for "JPEG or 24-bit PNG (no
+   transparency)" here, which is the opposite of the app icon's 32-bit rule,
+   and a canvas PNG always carries an alpha channel.
+--------------------------------------------------------------------------- */
+
+/* Shown as a circle on the developer page, so nothing that matters goes near
+   the corners - they carry plate and nothing else. */
+const DEV_ICON = `
+  var cx = w / 2, cy = h / 2;
+
+  var plate = c.createRadialGradient(cx, h * 0.40, w * 0.05, cx, h * 0.55, w * 0.80);
+  plate.addColorStop(0, '#15415a');
+  plate.addColorStop(0.55, '#0b2233');
+  plate.addColorStop(1, '#050f18');
+  c.fillStyle = plate;
+  c.fillRect(0, 0, w, h);
+
+  var r = w * 0.30;
+
+  var glow = c.createRadialGradient(cx, cy, r * 0.1, cx, cy, r * 1.7);
+  glow.addColorStop(0, 'rgba(57,215,255,0.22)');
+  glow.addColorStop(1, 'rgba(57,215,255,0)');
+  c.fillStyle = glow;
+  c.fillRect(0, 0, w, h);
+
+  /* Corner ticks: the game icon's reticle turned 45 degrees, so the two marks
+     read as siblings rather than as the same picture used twice. */
+  c.strokeStyle = '${ACCENT}';
+  c.lineCap = 'round';
+  c.lineWidth = w * 0.024;
+  c.globalAlpha = 0.9;
+  for (var i = 0; i < 4; i++) {
+    var a = Math.PI / 2 * i + Math.PI / 4;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(a) * r * 0.95, cy + Math.sin(a) * r * 0.95);
+    c.lineTo(cx + Math.cos(a) * r * 1.30, cy + Math.sin(a) * r * 1.30);
+    c.stroke();
+  }
+  c.globalAlpha = 1;
+
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  var size = w * 0.34;
+  do {
+    c.font = '700 ' + Math.round(size) + 'px "Segoe UI", Arial, sans-serif';
+    if (c.measureText('ltns').width <= w * 0.50) break;
+    size -= 1;
+  } while (size > 8);
+  c.save();
+  c.shadowColor = 'rgba(4,14,22,0.85)';
+  c.shadowBlur = w * 0.06;
+  c.fillStyle = '#eaf8ff';
+  c.fillText('ltns', cx, cy - h * 0.03);
+  c.restore();
+
+  c.strokeStyle = '${WARN}';
+  c.lineCap = 'butt';
+  c.lineWidth = w * 0.018;
+  c.beginPath();
+  c.moveTo(cx - w * 0.15, cy + h * 0.17);
+  c.lineTo(cx + w * 0.15, cy + h * 0.17);
+  c.stroke();
+`;
+
+/* The header sits behind the developer name and icon, and Play crops it hard
+   on narrow screens. So it carries no type at all, keeps the middle quiet, and
+   fades at every edge - whatever the crop takes, nothing is lost. */
+const DEV_HEADER = `
+  var cx = w / 2;
+  var horizon = h * 0.56;
+
+  var sky = c.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, '#050c15');
+  sky.addColorStop(0.55, '#0a2739');
+  sky.addColorStop(1, '#14556d');
+  c.fillStyle = sky;
+  c.fillRect(0, 0, w, horizon);
+
+  var ground = c.createLinearGradient(0, horizon, 0, h);
+  ground.addColorStop(0, '#123c52');
+  ground.addColorStop(1, '#050f18');
+  c.fillStyle = ground;
+  c.fillRect(0, horizon, w, h - horizon);
+
+  var haze = c.createRadialGradient(cx, horizon, 0, cx, horizon, w * 0.42);
+  haze.addColorStop(0, 'rgba(57,215,255,0.45)');
+  haze.addColorStop(0.4, 'rgba(57,215,255,0.12)');
+  haze.addColorStop(1, 'rgba(57,215,255,0)');
+  c.fillStyle = haze;
+  c.fillRect(0, 0, w, h);
+
+  /* Floor receding to the horizon. Coarse on purpose: at the sizes Play shows
+     this, fine lines turn into moire. */
+  c.strokeStyle = '${ACCENT}';
+  c.lineWidth = Math.max(1, h * 0.0035);
+  for (var i = -16; i <= 16; i++) {
+    c.globalAlpha = 0.26 - Math.abs(i) * 0.012;
+    if (c.globalAlpha <= 0) continue;
+    c.beginPath();
+    c.moveTo(cx + i * (w * 0.009), horizon);
+    c.lineTo(cx + i * (w * 0.30), h);
+    c.stroke();
+  }
+  for (var k = 1; k <= 7; k++) {
+    var t = k / 7;
+    c.globalAlpha = 0.07 + 0.20 * t;
+    var gy = horizon + (h - horizon) * t * t;
+    c.beginPath();
+    c.moveTo(0, gy);
+    c.lineTo(w, gy);
+    c.stroke();
+  }
+  c.globalAlpha = 1;
+
+  /* Two faint reticle rings, well out of the middle where the name goes. */
+  c.strokeStyle = 'rgba(57,215,255,0.16)';
+  c.lineWidth = h * 0.006;
+  [[w * 0.16, h * 0.30, h * 0.20], [w * 0.85, h * 0.26, h * 0.13]].forEach(function (o) {
+    c.beginPath();
+    c.arc(o[0], o[1], o[2], 0, Math.PI * 2);
+    c.stroke();
+  });
+
+  /* Fade every edge, so no crop lands on a hard line. */
+  var vig = c.createRadialGradient(cx, h * 0.5, h * 0.30, cx, h * 0.5, w * 0.62);
+  vig.addColorStop(0, 'rgba(4,10,17,0)');
+  vig.addColorStop(1, 'rgba(4,10,17,0.78)');
+  c.fillStyle = vig;
+  c.fillRect(0, 0, w, h);
+`;
+
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage();
@@ -362,9 +498,26 @@ const FEATURE = `
   );
   fs.rmSync(path.join(STORE, 'feature-1024x500.png'), { force: true });
 
+  /* Play developer page. Both are capped at 1 MB, and the header is nine
+     megapixels - so it is encoded harder than everything else here. The
+     gradients it is made of survive that without banding. */
+  written.push(
+    write(
+      path.join(STORE, 'developer', 'icon-512.jpg'),
+      await render(page, 512, 512, DEV_ICON, 'image/jpeg', 0.92)
+    )
+  );
+  written.push(
+    write(
+      path.join(STORE, 'developer', 'header-4096x2304.jpg'),
+      await render(page, 4096, 2304, DEV_HEADER, 'image/jpeg', 0.82)
+    )
+  );
+
   await browser.close();
   console.log('art: wrote ' + written.length + ' files');
   console.log('  launcher + adaptive foreground: mipmap-*');
   console.log('  splash: drawable-land-*, drawable-port-*');
   console.log('  store: store/icon-512.png, store/feature-1024x500.jpg');
+  console.log('  developer page: store/developer/*');
 })();
