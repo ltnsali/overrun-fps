@@ -144,11 +144,16 @@ missing field.
 | Header image | `store/developer/header-4096x2304.jpg` | 4096 × 2304, JPEG or **24-bit PNG, no transparency**, ≤ 1 MB | 4096 × 2304 JPEG, 208 KB |
 | Featured app | OVERRUN | One app from the account | The only one |
 | Developer website | <https://www.altunsuinsaat.com/ltns.html> | Optional, must resolve | Live |
-| Promo text (en-US) | see below | ≤ 140 characters | 126 |
+| Promo text (en-US) | see below | ≤ 140 characters | 112 |
 
 ```
-A one-person studio with one game so far: OVERRUN, a fast arena shooter. No ads, no in-app purchases, no accounts, no waiting.
+Small games made by one person. No ads, no in-app purchases, no accounts - open one and you are already playing.
 ```
+
+The promo text names no game on purpose. It sits under the *list* of everything
+the account publishes, so it describes the publisher and stays true as titles are
+added or removed - naming OVERRUN there would need editing the moment a second
+app ships, and would read oddly next to a list that already shows it.
 
 Note the format rule is the **opposite** of the app icon's. The app icon must be a
 32-bit PNG *with* alpha; the developer icon must have no alpha at all. Both are
