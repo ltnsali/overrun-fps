@@ -207,34 +207,47 @@ Verified against the official pages on 30 July 2026.
 
 ## Content rating questionnaire
 
+Submitted 19 Aug 2026. These are the answers actually given, corrected against
+the source rather than from memory - two of the answers written here previously
+were wrong, and both would have been misrepresentations.
+
 | Question | Answer |
 | --- | --- |
 | Category | Game |
 | Violence — does the app contain violence? | Yes |
-| Is the violence realistic? | **No.** Enemies are untextured geometric shapes. |
-| Blood or gore? | **No.** There is no blood, no dismemberment, no corpses. |
-| Violence against humans or animals? | **No.** Targets are abstract hostiles. |
-| Sexual content, nudity | No |
-| Language, profanity | No |
-| Controlled substances | No |
-| Gambling, simulated gambling | No |
-| User-generated content | **Yes.** See below — the callsign is UGC under Play's own definition. |
-| Users interact | **Yes.** Deathmatch shows every player an unfiltered name that another player typed. |
-| Shares location | **No.** No physical location is collected, transmitted or displayed. |
-| Digital purchases | No |
+| Which elements? | **Violence against humans.** `10-enemies.js` builds every hostile from a torso, chest, hips, head, two arms and two legs, walks them with a stride cycle, and gives them a separate `hitHead` box for headshots. They are armoured humanoids, not abstract shapes, and in deathmatch the targets are other players. |
+| Setting | Fantasy — a sci-fi arena, not a real or historical place |
+| Childish or pixelated style? | No |
+| Reactions to violence | Unrealistic |
+| How is it presented? | Frequently depicted at close range — it is a first-person shooter |
+| Level of blood | **Mild / limited.** There *is* blood: `fxImpact` with `mat === 'flesh'` sprays red particles, `fxBlood` fires on every hit, `fxGib` on death, and `SET.blood` defaults to `true`. It is short-lived particle spray, not wounds or pooling, so mild rather than none. |
+| Realistic or historical war setting? | No |
+| Can innocent or defenceless characters be harmed? | No — every target is an armed hostile or an armed player |
+| Horror imagery, frightening characters or sounds? | No |
+| Sexual content, gambling, language, drugs, crude humour, digital purchases | No |
+| Native voice chat, text messaging or image/audio sharing? | **No.** The IARC question names those three modalities and OVERRUN has none of them — no chat, no voice, no friends list. The callsign is a label, not a message. |
+| Shares physical location with other users? | No |
+| Nazi symbols, Korea national-identity content, terrorism advocacy, realistic crime technique | No |
 
-Expected outcome: this is a guess, not a result. IARC assigns the rating, and
-answering "yes" to violence, UGC and users-interact moves it. PEGI's own wording
-puts "very mild violence … implied or non-detailed, non-realistic violence" at
-**PEGI 7** and "violence of a slightly more graphic nature towards fantasy
-characters" at **PEGI 12**; a first-person shooter with a rocket launcher and
-explosions is more plausibly the latter. Plan for **PEGI 12 / ESRB Teen or
-Everyone 10+ / USK 12**, and treat anything lower as a bonus.
-<https://www.globalratings.com/ratings-guide.aspx>
+### Ratings received
+
+| Authority | Rating | Descriptors |
+| --- | --- | --- |
+| ESRB (North America) | **13+** | Violence, Blood |
+| PEGI (Europe) | **PEGI 12** | Moderate Violence |
+| USK (Germany) | **16+** | Violence |
+| GRAC (South Korea) | — | Violence |
+| IARC Generic / Google Play | — | Moderate Violence |
+
+The earlier guess in this file was "PEGI 12 / ESRB Teen"; that turned out right,
+but only by accident — it was reasoned from an inaccurate description of the
+game's own content. Answering from the source moved two answers and would have
+moved the rating had the guesses been submitted.
 
 Misrepresenting content on the questionnaire is grounds for removal or
 suspension, and the questionnaire must be retaken whenever a change to content
-or features would change an answer.
+or features would change an answer. Turning `SET.blood` off by default, or
+making enemies non-humanoid, would both be such a change.
 <https://support.google.com/googleplay/android-developer/answer/9898843>
 
 ---
