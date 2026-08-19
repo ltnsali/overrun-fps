@@ -23,7 +23,7 @@ screenshots from the app running on a real device or emulator.
 | Free or paid | Free |
 | Contains ads | **No** |
 | In-app purchases | **No** |
-| Website | https://ltnsali.github.io/overrun-fps/ |
+| Website | https://ltnsali.github.io/overrun-fps/ltns.html |
 | Privacy policy | https://ltnsali.github.io/overrun-fps/privacy.html |
 
 Created in Play Console on 19 Aug 2026 under the `ltns` personal account
@@ -155,7 +155,7 @@ missing field.
 | Developer icon | `store/developer/icon-512.jpg` | 512 × 512, JPEG or **24-bit PNG, no transparency**, ≤ 1 MB | 512 × 512 JPEG, 19 KB |
 | Header image | `store/developer/header-4096x2304.jpg` | 4096 × 2304, JPEG or **24-bit PNG, no transparency**, ≤ 1 MB | 4096 × 2304 JPEG, 208 KB |
 | Featured app | OVERRUN | One app from the account | The only one |
-| Developer website | <https://www.altunsuinsaat.com/ltns.html> | Optional, must resolve | Live |
+| Developer website | <https://ltnsali.github.io/overrun-fps/ltns.html> | Optional, must resolve | Live |
 | Promo text (en-US) | see below | ≤ 140 characters | 112 |
 
 ```
@@ -181,6 +181,28 @@ Two things drove the artwork rather than taste:
   are drawn over the middle of it, so it carries **no type at all**, keeps the
   centre quiet, and fades at every edge. Anything written there would be either
   cut off or sitting under Play's own text.
+
+### The publisher page
+
+`ltns.html` in this repository is the publisher page, served by GitHub Pages at
+<https://ltnsali.github.io/overrun-fps/ltns.html>. It carries the trading name,
+the responsible person, the address exactly as it reads in the Play developer
+record, the support address, and a link to the privacy policy.
+
+It replaced a page on a separate domain. Keeping it here means the page, the
+privacy policy, the game and the source all live behind one address that is
+published by the same commit, so none of them can drift out of step with the
+others or outlive a domain we stop paying for.
+
+Play will not treat a website as yours until Search Console has. The account is
+verified for the URL prefix `https://ltnsali.github.io/overrun-fps/` by the HTML
+file method, which is why `google0c896c9465203bc7.html` sits in the repository
+root. **Deleting that file drops the verification**, and with it the check next to
+the website in the developer account.
+
+The order matters: the URL has to be saved in Play *first*, then verified in
+Search Console, and only then does **Send verification request** succeed. Sending
+it before the prefix is verified silently does nothing.
 
 ---
 
