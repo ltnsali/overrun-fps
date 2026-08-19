@@ -26,6 +26,18 @@ screenshots from the app running on a real device or emulator.
 | Website | https://ltnsali.github.io/overrun-fps/ |
 | Privacy policy | https://ltnsali.github.io/overrun-fps/privacy.html |
 
+Created in Play Console on 19 Aug 2026 under the `ltns` personal account
+(developer ID `9131078730559587396`). The app's own console ID is
+`4976201936712559819`, which is what the Publishing API and
+`gradle-play-publisher` will need later.
+
+Two of the choices made at creation cannot be undone: the package name
+`com.overrun.fps`, and Free rather than Paid - a free app can never be switched
+to paid. Play App Signing was accepted at the same time, which is why
+`android/upload-keystore.jks` is an *upload* key: Google holds the real signing
+key, so losing the upload key is recoverable and losing it is not the end of the
+app.
+
 ---
 
 ## Short description (80 characters max)
