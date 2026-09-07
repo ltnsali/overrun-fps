@@ -26,6 +26,10 @@ function applyShadowSetting(){
 function applyRes(){
   onResize();
 }
+function applyTouchScale(){
+  var ui = document.getElementById('touchUI');
+  if(ui) ui.style.setProperty('--ts', SET.tscale);
+}
 function bindSettings(){
   function bind(id, key, fmt, after){
     var el = document.getElementById(id);
@@ -50,5 +54,7 @@ function bindSettings(){
   bind('optShake','shake', null);
   bind('optBlood','blood', null);
   bind('optRes','res', function(v){ return Math.round(v*100)+'%'; }, applyRes);
+  bind('optTScale','tscale', function(v){ return Math.round(v*100)+'%'; }, applyTouchScale);
   bind('optDiff','diff', function(v){ return DIFF_NAMES[v|0]; });
+  applyTouchScale();
 }

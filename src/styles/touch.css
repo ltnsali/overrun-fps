@@ -3,9 +3,16 @@
 .screen{touch-action:pan-y;-webkit-overflow-scrolling:touch;}
 .btn,.row input,.wslot{touch-action:manipulation;}
 
+/* Settings rows that only mean anything with on-screen controls. */
+.row.touchOnly{display:none;}
+body.touch .row.touchOnly{display:flex;}
+
 /* ---- on-screen controls layer ---- */
+/* Every button is sized and placed in multiples of --ts so one slider can shrink
+   the whole set. The stick is deliberately left out: its radius lives in a JS
+   constant (STICK_R) and scaling only the artwork would desync the knob. */
 #touchUI{
-  position:fixed;inset:0;z-index:15;display:none;pointer-events:none;
+  position:fixed;inset:0;z-index:15;display:none;pointer-events:none;--ts:1;
   padding:env(safe-area-inset-top) env(safe-area-inset-right)
           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -28,26 +35,34 @@
 .tbtn{
   position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
   border-radius:50%;border:1px solid rgba(57,215,255,.35);background:rgba(8,16,26,.42);
-  color:#cfeaff;font-family:inherit;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1.15;
+  color:#cfeaff;font-family:inherit;font-weight:700;letter-spacing:1px;line-height:1.15;
   text-transform:uppercase;text-align:center;backdrop-filter:blur(2px);
   transition:background .07s,border-color .07s,transform .07s;
+  width:calc(var(--w,44px)*var(--ts));height:calc(var(--w,44px)*var(--ts));
+  font-size:calc(var(--fs,10px)*var(--ts));
 }
 .tbtn.act{background:rgba(57,215,255,.32);border-color:var(--accent);color:#fff;transform:scale(.93);}
 
-#tFire{right:20px;bottom:20px;width:96px;height:96px;font-size:13px;
-  border-color:rgba(255,59,92,.45);background:rgba(40,8,14,.42);}
+/* The right thumb has to plant somewhere to swing the camera, and the old set
+   filled 240px of the corner with live buttons - so it planted on SWAP, FRAG or
+   BASH instead. Everything is smaller now and tucked into 154px against the
+   edge, which leaves the band the thumb actually reaches for. CROUCH moved over
+   here from the bottom-left for the same reason: the stick claims any touch in
+   the left 45% of the screen, but a button there swallows it first, so reaching
+   for the stick crouched you instead of moving you. */
+#tFire  {--w:82px;--fs:13px;right:calc(16px*var(--ts)); bottom:calc(16px*var(--ts));
+         border-color:rgba(255,59,92,.45);background:rgba(40,8,14,.42);}
 #tFire.act{background:rgba(255,59,92,.34);border-color:var(--accent2);}
-#tAds   {right:128px;bottom:28px; width:66px;height:66px;}
-#tMelee {right:206px;bottom:22px; width:54px;height:54px;font-size:10px;}
-#tJump  {right:34px; bottom:126px;width:66px;height:66px;}
-#tReload{right:126px;bottom:106px;width:62px;height:62px;font-size:10px;}
-#tNade  {right:206px;bottom:88px; width:54px;height:54px;font-size:10px;}
-#tSwap  {right:206px;bottom:154px;width:54px;height:54px;font-size:10px;}
-#tCrouch{left:18px;  bottom:18px; width:58px;height:58px;font-size:10px;}
-#tPause {left:14px;  top:14px;    width:46px;height:46px;font-size:16px;}
+#tAds   {--w:54px;--fs:11px;right:calc(106px*var(--ts));bottom:calc(18px*var(--ts));}
+#tJump  {--w:50px;--fs:10px;right:calc(20px*var(--ts)); bottom:calc(106px*var(--ts));}
+#tCrouch{--w:44px;--fs:9px; right:calc(78px*var(--ts)); bottom:calc(106px*var(--ts));}
+#tReload{--w:44px;--fs:9px; right:calc(128px*var(--ts));bottom:calc(82px*var(--ts));}
+#tMelee {--w:44px;--fs:9px; right:calc(124px*var(--ts));bottom:calc(134px*var(--ts));}
+#tNade  {--w:44px;--fs:9px; right:calc(72px*var(--ts)); bottom:calc(160px*var(--ts));}
+#tSwap  {--w:44px;--fs:9px; right:calc(20px*var(--ts)); bottom:calc(164px*var(--ts));}
+#tPause {--w:46px;--fs:16px;left:calc(14px*var(--ts)); top:calc(14px*var(--ts));}
 
-/* ---- rotate-to-landscape gate ---- */
-#rotate{
+/* ---- rotate-to-landscape gate ---- */#rotate{
   position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
   flex-direction:column;background:var(--bg);text-align:center;padding:30px;
 }

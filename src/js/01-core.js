@@ -22,7 +22,8 @@ var G = {
 };
 
 var SET = {
-  sens: 1.0, fov: 82, vol: 0.6, shadows:true, shake:true, blood:true, res:1, diff:1
+  sens: 1.0, fov: 82, vol: 0.6, shadows:true, shake:true, blood:true, res:1, diff:1,
+  tscale: 1
 };
 
 /* Touch device? Coarse pointer + touch events. ?touch=1 forces it on for testing. */

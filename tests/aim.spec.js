@@ -318,3 +318,92 @@ test.describe('touch FIRE / AIM buttons', () => {
     await expect(page.locator('#tFire')).not.toHaveClass(/act/);
   });
 });
+
+/* Five of eight closed-test testers reported the same thing: swinging the camera
+   fires, swaps or throws a grenade. Touch events have implicit capture, so a drag
+   that crosses a button cannot trigger it - the thumb has to be *planted* on one.
+   Which means this is geometry, and geometry is measurable. */
+test.describe('touch control layout', () => {
+  const BTNS = ['#tFire', '#tAds', '#tJump', '#tCrouch', '#tReload', '#tNade', '#tSwap', '#tMelee'];
+
+  const boxes = (page) =>
+    page.evaluate((ids) => {
+      const app = document.getElementById('app');
+      return {
+        view: { w: app.clientWidth, h: app.clientHeight },
+        rects: ids.map((id) => {
+          const r = document.querySelector(id).getBoundingClientRect();
+          return { id, x: r.left, y: r.top, w: r.width, h: r.height };
+        })
+      };
+    }, BTNS);
+
+  test('no two controls overlap, at any size', async ({ page }) => {
+    await bootRound(page);
+    for (const scale of [0.7, 1, 1.3]) {
+      await page.evaluate((s) => {
+        SET.tscale = s;
+        applyTouchScale();
+      }, scale);
+      const { rects } = await boxes(page);
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const b = rects[j];
+          const over =
+            a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+          expect(over, `${a.id} overlaps ${b.id} at scale ${scale}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  /* onTouchStart claims anything landing in the left 45% for the movement stick,
+     but a button there swallows the touch first - so a button in that band means
+     reaching for the stick does something else instead. PAUSE is excluded on
+     purpose: it is pinned to the top-left corner, nowhere near where a thumb
+     rests to drive, and moving it would put it under the aiming hand. */
+  test('no control sits in the movement stick band', async ({ page }) => {
+    await bootRound(page);
+    const { view, rects } = await boxes(page);
+    const band = view.w * 0.45;
+    for (const r of rects) {
+      expect(r.x, `${r.id} intrudes into the stick band`).toBeGreaterThanOrEqual(band);
+    }
+  });
+
+  /* The complaint in one number. The thumb swings the camera by planting in the
+     lower right; every pixel the cluster reaches inwards is a place it can land
+     on a button instead. The old set spanned 240px from the right edge, which is
+     most of a phone's thumb arc - hence FRAG and SWAP going off mid-turn. */
+  test('the controls stay in a narrow strip and leave the swing area alone', async ({ page }) => {
+    await bootRound(page);
+    const { view, rects } = await boxes(page);
+    const reach = view.w - Math.min(...rects.map((r) => r.x));
+    expect(reach, `cluster reaches ${Math.round(reach)}px in from the right edge`)
+      .toBeLessThan(180);
+
+    /* And nothing may sit in the middle of the screen where a look-drag starts. */
+    const midline = view.w * 0.62;
+    for (const r of rects) {
+      expect(r.x, `${r.id} sits too far inboard`).toBeGreaterThan(midline);
+    }
+  });
+
+  test('the size setting resizes the controls and survives a reload', async ({ page }) => {
+    await bootRound(page);
+    const big = (await boxes(page)).rects.find((r) => r.id === '#tFire').w;
+
+    await page.evaluate(() => {
+      SET.tscale = 0.7;
+      applyTouchScale();
+      saveSettings();
+    });
+    const small = (await boxes(page)).rects.find((r) => r.id === '#tFire').w;
+    expect(small, 'shrinking the setting must shrink the button').toBeLessThan(big - 10);
+
+    await bootGame(page, { touch: true });
+    const kept = await page.evaluate(() => SET.tscale);
+    expect(kept, 'the choice must survive a restart').toBeCloseTo(0.7, 2);
+  });
+});
