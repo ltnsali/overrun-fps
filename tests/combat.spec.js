@@ -232,6 +232,103 @@ test.describe('gunplay', () => {
     expect(r.close, 'a bash should land on an adjacent target').toBeGreaterThan(0);
     expect(r.far, 'a bash should not reach across the map').toBe(0);
   });
+
+  test('an enemy cannot claw the player through a floor', async ({ page }) => {
+    await range(page);
+    const r = await page.evaluate(() => {
+      /* Chase distance is horizontal on purpose, so a grunt standing directly
+         below the player is "in range" by every horizontal measure. Hold the
+         two bodies at a fixed gap and let the AI swing for several seconds. */
+      const maul = (gap) => {
+        __reset();
+        const e = __dummy(0, 40 - gap, -0.8);
+        e.stun = 0;
+        e.attackCd = 0;
+        e.hp = e.maxHp = 1e6;
+        for (let i = 0; i < 400; i++) {
+          PL.pos.set(0, 40, 0);
+          PL.vel.set(0, 0, 0);
+          e.pos.set(0, 40 - gap, -0.8);
+          e.vel.set(0, 0, 0);
+          updateEnemies(1 / 60);
+        }
+        return PL.maxHp - PL.hp;
+      };
+      return { sameFloor: maul(0), storeyBelow: maul(4) };
+    });
+    expect(r.sameFloor, 'a grunt at arm\u2019s length must still hurt').toBeGreaterThan(0);
+    expect(r.storeyBelow, 'a grunt a floor below must not reach up').toBe(0);
+  });
+});
+
+test.describe('enemy navigation', () => {
+  /* The arena is the fixture: tuck a body into the corner behind a real block
+     with the player on the far side, which is the shape both testers described.
+     Steering has no map, so it is not expected to circumnavigate an eighteen
+     metre building - what it must not do is stall against the wall forever. */
+  const cornerRun = () => {
+    const edge = WORLD.size - 14;
+    const c = WORLD.colliders.find(
+      (b) =>
+        !b.disabled &&
+        b.miny <= 0.2 &&
+        b.maxy > 1.8 &&
+        b.maxx - b.minx > 2 &&
+        b.maxz - b.minz > 2 &&
+        Math.abs(b.minx) < edge &&
+        Math.abs(b.minz) < edge
+    );
+    if (!c) return { skipped: true };
+    const midX = (c.minx + c.maxx) / 2;
+    __reset();
+    MATCH.bots = 0;
+    PL.pos.set(midX, 0, c.maxz + 4);
+    PL.alive = true;
+    const e = __dummy(midX, 0, c.minz - 1.0);
+    e.stun = 0;
+    e.hp = e.maxHp = 1e6;
+    let travelled = 0;
+    let stalled = 0;
+    let worstStall = 0;
+    let px = e.pos.x;
+    let pz = e.pos.z;
+    for (let i = 0; i < 8 * 60; i++) {
+      PL.hp = PL.maxHp; // never let the run end early on a lucky swing
+      updateEnemies(1 / 60);
+      const step = Math.hypot(e.pos.x - px, e.pos.z - pz);
+      travelled += step;
+      if (step < 0.004) {
+        stalled++;
+        if (stalled > worstStall) worstStall = stalled;
+      } else stalled = 0;
+      px = e.pos.x;
+      pz = e.pos.z;
+    }
+    return {
+      skipped: false,
+      travelled,
+      worstStallSeconds: worstStall / 60,
+      startedOnFace: c.minz - 1.0,
+      clearedCornerBy: Math.abs(e.pos.x) - c.maxx,
+      blockHalf: (c.maxx - c.minx) / 2
+    };
+  };
+
+  test('an enemy behind cover works its way round instead of wedging', async ({ page }) => {
+    await range(page);
+    const r = await page.evaluate(
+      (src) => new Function(`return (${src})()`)(),
+      cornerRun.toString()
+    );
+    test.skip(r.skipped, 'no suitable collider in this arena');
+
+    expect(r.worstStallSeconds, 'an enemy must never stop dead against a wall').toBeLessThan(0.5);
+    expect(r.travelled, 'it should cover real ground in eight seconds').toBeGreaterThan(12);
+    expect(
+      r.clearedCornerBy,
+      'it should get past the face it started on rather than grind along it'
+    ).toBeGreaterThan(0);
+  });
 });
 
 test.describe('player physics', () => {

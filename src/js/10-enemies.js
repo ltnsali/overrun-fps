@@ -110,7 +110,8 @@ function spawnEnemy(type, pos){
     hitHead:{minx:0,miny:0,minz:0,maxx:0,maxy:0,maxz:0},
     hitBody:{minx:0,miny:0,minz:0,maxx:0,maxy:0,maxz:0},
     ignoreRay:false, flash:0, growl: rand(2,7), lastLOS:0, seesPlayer:false, losT:0,
-    chargeT:0, spawnFx:0.6
+    chargeT:0, spawnFx:0.6,
+    detourSide:0, detourT:0, sampleT: rand(0.3,0.6), lastX:pos.x, lastZ:pos.z, wedged:0
   };
   e.maxHp = e.hp;
   e.mesh.position.copy(e.pos);
@@ -137,6 +138,29 @@ function hasLOS(from, to){
     if(c.disabled) continue;
     var t = rayAABB(from.x,from.y,from.z, dx,dy,dz, c, dist);
     if(t >= 0 && t < dist-0.15) return false;
+  }
+  return true;
+}
+
+/* Chase distance is deliberately flat - an enemy a floor below still walks
+   towards the stairs rather than giving up. A swing, though, has to respect
+   the height it cannot reach, so melee is gated on the two bodies actually
+   overlapping vertically. Without this a grunt on the ground floor mauls a
+   player standing at the edge of the balcony above it: the horizontal gap is
+   nothing and the line of sight over the lip is clear. */
+var MELEE_REACH_UP = 0.75;      // generous enough for a step, short of a storey
+function enemyCanReach(e){
+  if(PL.pos.y > e.pos.y + e.height + MELEE_REACH_UP) return false;
+  if(PL.pos.y + PL.h < e.pos.y - MELEE_REACH_UP) return false;
+  return true;
+}
+
+/* Sampling one point ahead says nothing about the gap between here and there,
+   so walk the segment. Cheap, and it is what stops a body clipping a corner it
+   cannot actually round. */
+function pathClear(e, dx, dz, dist){
+  for(var s=0.55; s<=1.0001; s+=0.45){
+    if(enemyBlocked(e, e.pos.x + dx*dist*s, e.pos.z + dz*dist*s)) return false;
   }
   return true;
 }
@@ -217,7 +241,7 @@ function updateEnemies(dt){
 
     if(e.stun <= 0){
       var meleeRange = def.mrange || def.range;
-      if(def.ranged && !(def.melee && dist < meleeRange)){
+      if(def.ranged && !(def.melee && dist < meleeRange && enemyCanReach(e))){
         /* ranged behaviour: maintain preferred distance, strafe, shoot */
         var pref = def.prefer;
         var radial = 0;
@@ -252,12 +276,12 @@ function updateEnemies(dt){
           }
           if(e.chargeBoost > 1){ e.chargeBoost = damp(e.chargeBoost, 1, 0.7, dt); speed *= e.chargeBoost; }
         }
-        if(dist < meleeRange + e.radius){
+        if(dist < meleeRange + e.radius && enemyCanReach(e)){
           moveDir.multiplyScalar(0.12);
           if(e.windup > 0){
             e.windup -= dt;
             if(e.windup <= 0){
-              if(dist < meleeRange + 1.1 && e.seesPlayer) {
+              if(dist < meleeRange + 1.1 && e.seesPlayer && enemyCanReach(e)) {
                 damagePlayer(def.dmg * D().dmg, e.pos, false, e);
                 AUD.noise(0.16,.32,'lowpass',700,1);
               }
@@ -271,22 +295,57 @@ function updateEnemies(dt){
         if(e.attackCd > 0) e.attackCd -= dt;
       }
 
-      /* obstacle avoidance: try direct, then fan out */
+      /* Obstacle avoidance is wall-following, not a per-frame re-decision.
+         Steering straight at the player is what wedges a body in a corner, and
+         re-deriving that same blocked heading sixty times a second is what kept
+         it there. So: once blocked, pick a side and hold it, and only go back to
+         the direct line when a look-ahead twice as long as the block probe is
+         clear. The long probe is the hysteresis - without it the corner reads as
+         open for a frame, the body turns in, re-blocks, and dithers on the spot. */
       if(moveDir.lengthSq() > 0.0001){
         moveDir.normalize();
         var probe = 1.15 + e.radius;
-        if(enemyBlocked(e, e.pos.x + moveDir.x*probe, e.pos.z + moveDir.z*probe)){
+        var directOK = pathClear(e, moveDir.x, moveDir.z, probe);
+        if(e.detourT > 0){
+          e.detourT -= dt;
+          if(directOK && pathClear(e, moveDir.x, moveDir.z, probe*2.2)) e.detourT = 0;
+        }
+        if(e.detourT > 0 || !directOK){
+          if(!e.detourSide) e.detourSide = Math.random() < 0.5 ? 1 : -1;
           var found = false;
-          var angles = [0.5,-0.5,1.0,-1.0,1.6,-1.6,2.3,-2.3];
-          for(var a2=0;a2<angles.length;a2++){
-            var ca = Math.cos(angles[a2]), sa = Math.sin(angles[a2]);
+          /* Small angles first so it hugs the wall; past 2.6 rad it can double
+             back, which is the only way out of a pocket. It may not turn its
+             back on a player it can actually see, or it wanders off downfield. */
+          var mags = [0.45,0.9,1.35,1.75,2.2,2.65,3.05];
+          var maxAng = e.seesPlayer ? 1.75 : 3.05;
+          for(var a2=0;a2<mags.length;a2++){
+            if(mags[a2] > maxAng) break;
+            var ang = mags[a2] * e.detourSide;
+            var ca = Math.cos(ang), sa = Math.sin(ang);
             var rx = moveDir.x*ca - moveDir.z*sa, rz = moveDir.x*sa + moveDir.z*ca;
-            if(!enemyBlocked(e, e.pos.x + rx*probe, e.pos.z + rz*probe)){
-              moveDir.set(rx,0,rz); found = true; break;
+            if(pathClear(e, rx, rz, probe)){
+              moveDir.set(rx,0,rz);
+              e.detourT = Math.max(e.detourT, 0.9);
+              found = true; break;
             }
           }
-          if(!found) moveDir.multiplyScalar(0.15);
+          if(!found){
+            e.detourSide *= -1;                  // that side is a dead end; try the other
+            moveDir.multiplyScalar(0.15);
+          }
         }
+      }
+      /* Stuck detection: if it wanted to move and did not, force it round. */
+      e.sampleT -= dt;
+      if(e.sampleT <= 0){
+        var travelled = Math.hypot(e.pos.x - e.lastX, e.pos.z - e.lastZ);
+        var wantedToMove = moveDir.lengthSq() > 0.02 && speed > 0.5 && e.stun <= 0;
+        if(wantedToMove && travelled < 0.22){
+          e.wedged++;
+          if(e.wedged >= 2){ e.detourSide *= -1; e.detourT = 1.4; e.wedged = 0; }
+        } else e.wedged = 0;
+        e.lastX = e.pos.x; e.lastZ = e.pos.z;
+        e.sampleT = 0.4;
       }
       /* separation from other enemies */
       for(var j=0;j<ENEMIES.length;j++){
