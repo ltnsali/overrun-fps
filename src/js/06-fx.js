@@ -346,7 +346,13 @@ function fxGib(pos, count){
 /* ---------------------------------------------------------------------------
    7. EXPLOSIONS
 --------------------------------------------------------------------------- */
-function doExplosion(pos, radius, damage, hurtsPlayer){
+/* `falloff` is the exponent on the distance term. The rocket detonates on
+   contact so it always cashes out near full damage; the grenade has the same
+   maths and none of the delivery, which made an 8.6m blast a two-metre weapon.
+   Passing 1 for grenades pays out over the radius the weapon claims. Defaults to
+   2 so rockets and barrels are untouched. */
+function doExplosion(pos, radius, damage, hurtsPlayer, falloff){
+  var fexp = falloff || 2;
   AUD.explode(pos);
   addFlash(pos, 0xffa040, 9, 0.4);
   addRing(pos, 0.5, radius*1.15, 0.55, 0xffaa44);
@@ -369,7 +375,7 @@ function doExplosion(pos, radius, damage, hurtsPlayer){
     var d = e2.pos.distanceTo(pos);
     if(d < radius){
       var f = 1 - d/radius;
-      damageEnemy(e2, damage*f*f, false, pos, 'explosion');
+      damageEnemy(e2, damage*Math.pow(f,fexp), false, pos, 'explosion');
       e2.knock.set((e2.pos.x-pos.x)/Math.max(0.3,d)*14*f, 6*f, (e2.pos.z-pos.z)/Math.max(0.3,d)*14*f);
       e2.stun = Math.max(e2.stun, 0.35*f);
     }
@@ -387,6 +393,8 @@ function doExplosion(pos, radius, damage, hurtsPlayer){
     var dp = pp.distanceTo(pos);
     if(dp < radius*1.1){
       var fp = 1 - dp/(radius*1.1);
+      /* Self-damage keeps the steep curve on purpose - it already carries a 0.55
+         multiplier, and a grenade that bounces back should sting, not delete. */
       damagePlayer(damage*fp*fp*0.55, pos);
       PL.vel.x += (pp.x-pos.x)/Math.max(0.4,dp)*12*fp;
       PL.vel.z += (pp.z-pos.z)/Math.max(0.4,dp)*12*fp;

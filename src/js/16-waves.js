@@ -54,7 +54,13 @@ function pickSpawn(){
     var toE = TMPV.set(sp.x-PL.pos.x,0,sp.z-PL.pos.z).normalize();
     var fwd = TMPV2.set(-Math.sin(PL.yaw),0,-Math.cos(PL.yaw));
     var facing = toE.dot(fwd);
-    var score = (1-facing)*20 + Math.min(d,60)*0.25 + rand(0,9);
+    /* The constraint is "not where the player is looking" - watching a body fade
+       in on screen is worse than being flanked. Scoring `(1-facing)*20` expressed
+       that as a reward for being *behind*, worth 40 against at most 24 from
+       distance and jitter, so behind won every single time and every wave became
+       a turn-around. Stating the constraint directly leaves the sides in play. */
+    var inView = facing > 0.62;                       // roughly the visible cone
+    var score = (inView ? 0 : 22) + Math.min(d,60)*0.25 + rand(0,9);
     if(blockedAt(sp.x, 0, sp.z, 0.6, 1.9)) score -= 60;
     if(score > bestScore){ bestScore = score; best = sp; }
   }

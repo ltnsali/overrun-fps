@@ -429,6 +429,41 @@ test.describe('player physics', () => {
   });
 });
 
+test.describe('wave spawning', () => {
+  /* "Once playing single player all opponents are in your back. This is
+     confusing." The constraint is that nobody may fade in on screen; arriving
+     from behind was an accident of how that was scored. */
+  const sample = () => {
+    __reset();
+    PL.pos.set(0, 0, 0);
+    PL.yaw = 0;
+    const fwd = { x: -Math.sin(PL.yaw), z: -Math.cos(PL.yaw) };
+    let inView = 0;
+    let behind = 0;
+    const n = 400;
+    for (let i = 0; i < n; i++) {
+      const s = pickSpawn();
+      const len = Math.hypot(s.x, s.z) || 1;
+      const facing = (s.x / len) * fwd.x + (s.z / len) * fwd.z;
+      if (facing > 0.62) inView++;
+      if (facing < -0.5) behind++;
+    }
+    return { inViewPct: inView / n, behindPct: behind / n };
+  };
+
+  test('hostiles arrive from all sides, never in front of your eyes', async ({ page }) => {
+    await range(page);
+    const r = await page.evaluate((src) => new Function(`return (${src})()`)(), sample.toString());
+
+    expect(r.inViewPct, `${(r.inViewPct * 100).toFixed(0)}% spawned inside the view cone`)
+      .toBeLessThan(0.05);
+    expect(
+      r.behindPct,
+      `${(r.behindPct * 100).toFixed(0)}% spawned behind the player`
+    ).toBeLessThan(0.7);
+  });
+});
+
 test.describe('damage and survival', () => {
   test('armor soaks most of a hit before health does', async ({ page }) => {
     await range(page);
@@ -475,6 +510,44 @@ test.describe('damage and survival', () => {
     });
     expect(r.nearHurt, 'a target in the blast must take damage').toBeGreaterThan(0);
     expect(r.farHurt, 'a target well outside the radius must not').toBe(0);
+  });
+
+  test('a grenade kills over the radius it advertises, not just at contact', async ({ page }) => {
+    await range(page);
+    const r = await page.evaluate(() => {
+      /* Detonate a real grenade through the real code path - fuse expiry runs
+         projectileHit, which is where the falloff exponent is chosen. */
+      const blastAt = (gap) => {
+        __reset();
+        const e = __dummy(0, 40, -gap);
+        e.hp = e.maxHp = 100000; // measure the damage, do not race the HP curve
+        updateEnemies(0);
+        const before = e.hp;
+        spawnGrenade(new THREE.Vector3(0, 40, 0), new THREE.Vector3(0, 0, -1), 1);
+        const g = PROJ[PROJ.length - 1];
+        g.pos.set(0, 40, 0);
+        g.vel.set(0, 0, 0);
+        g.life = 0;
+        updateProjectiles(1 / 60);
+        return before - e.hp;
+      };
+      return {
+        gruntHp: EDEF.grunt.hp,
+        at1: blastAt(1),
+        at3: blastAt(3),
+        at5: blastAt(5),
+        at12: blastAt(12)
+      };
+    });
+
+    /* A frag that cannot kill a grunt three metres away is a contact weapon
+       wearing an 8.6m radius, which is exactly what testers reported. */
+    expect(r.at3, `grenade at 3m dealt ${r.at3.toFixed(0)} vs grunt ${r.gruntHp} HP`)
+      .toBeGreaterThan(r.gruntHp);
+    expect(r.at1, 'closer must still hurt more').toBeGreaterThan(r.at3);
+    expect(r.at5, 'five metres is inside the radius and must do real damage')
+      .toBeGreaterThan(r.gruntHp * 0.5);
+    expect(r.at12, 'well outside the radius must do nothing').toBe(0);
   });
 
   test('grenades and rockets both spawn and detonate', async ({ page }) => {

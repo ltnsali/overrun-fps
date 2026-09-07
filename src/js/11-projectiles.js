@@ -156,7 +156,7 @@ function projectileHit(p, point, normal){
     AUD.tone(600,180,0.1,.16*AUD.at(point),'square');
     if(normal.y > 0.5 || Math.abs(normal.y) < 0.5) addDecal(point, normal, rand(0.2,0.3), 0x66ccff);
   } else {
-    doExplosion(point, p.radius, p.dmg, true);
+    doExplosion(point, p.radius, p.dmg, true, p.type === 'grenade' ? 1 : 2);
     if(SET.blood===false){} 
     addDecal(point, normal, rand(1.4,2.0), 0x221a14);
   }
