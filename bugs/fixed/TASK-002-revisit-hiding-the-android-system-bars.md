@@ -3,7 +3,7 @@ id: TASK-002
 title: Revisit hiding the Android system bars, now that players notice the strip
 severity: minor
 area: android
-status: open
+status: wontfix
 found-by: testers
 devices: [android]
 tracked-as: https://github.com/ltnsali/overrun-fps/issues/6
@@ -61,3 +61,39 @@ The strip costs a little screen and looks unfinished. Losing the pause on the
 first BACK press costs the player a death. If the two cannot both be had, the
 current trade is the right one and this should be closed as declined rather than
 half-fixed.
+
+
+## Outcome: the existing behaviour stands, now with evidence
+
+The alternative was implemented and measured rather than argued about.
+`MainActivity` was changed to hide the bars and reveal them on a swipe, using the
+modern API rather than the legacy immersive flags:
+
+```java
+bars.setSystemBarsBehavior(
+        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+bars.hide(WindowInsetsCompat.Type.systemBars());
+```
+
+The reasoning was sound on paper: `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` reveals
+the bars on a *swipe*, so it should leave BACK alone - unlike the legacy flags the
+original comment was written against.
+
+It does not. The Android suite failed on:
+
+```
+the back button pauses the match instead of closing the game
+  TimeoutError: window.G.state === 'paused'
+```
+
+The first failure was on a cold emulator, so it was re-run twice more on a warm
+one and failed both times; reverting put the suite straight back to 16/16. The
+system still swallows the first BACK press while the bars are hidden.
+
+BACK is how this game pauses. Trading a reliable pause for a 24-pixel strip is a
+bad deal, because a player who cannot pause loses the round.
+
+Worth revisiting only if a future Android release genuinely decouples BACK from
+bar visibility - and then with a device run attached, not on the strength of the
+documentation.
+

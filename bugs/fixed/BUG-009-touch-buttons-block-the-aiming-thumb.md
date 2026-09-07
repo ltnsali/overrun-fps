@@ -3,7 +3,7 @@ id: BUG-009
 title: The touch buttons sit in the two places a thumb has to move, so aiming fires, swaps and throws grenades
 severity: major
 area: controls
-status: open
+status: fixed
 found-by: testers
 devices: [android]
 ---
@@ -59,3 +59,4 @@ and "excellent" in the same message they complained about the buttons.
 
 The first two are the fix. Aim assist is a separate design decision and is
 tracked as an improvement, not part of this.
+
