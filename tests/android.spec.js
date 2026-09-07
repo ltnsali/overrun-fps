@@ -231,6 +231,51 @@ test.describe('the installed app', () => {
     await expect(page.locator('#tStick')).toBeVisible();
     await backToMenu();
   });
+
+  /* The layout is asserted in the browser suite too, but only against synthetic
+     viewports. A real device brings its own pixel ratio and safe-area insets, so
+     a control could land on top of another one here and nowhere else - which is
+     the case the testers were actually playing. */
+  test('the controls do not overlap or block the movement thumb on real hardware', async () => {
+    await press('#btnPlay');
+    await page.waitForFunction(() => window.G.state === 'playing', undefined, { timeout: 30_000 });
+
+    const r = await page.evaluate(() => {
+      const ids = ['tFire', 'tAds', 'tJump', 'tCrouch', 'tReload', 'tNade', 'tSwap', 'tMelee'];
+      const app = document.getElementById('app');
+      return {
+        view: { w: app.clientWidth, h: app.clientHeight, dpr: window.devicePixelRatio },
+        rects: ids.map((id) => {
+          const b = document.getElementById(id).getBoundingClientRect();
+          return { id, x: b.left, y: b.top, w: b.width, h: b.height };
+        })
+      };
+    });
+
+    for (const b of r.rects) {
+      expect(b.w, `${b.id} has no size on device`).toBeGreaterThan(0);
+      expect(b.x + b.w, `${b.id} runs off the right edge`).toBeLessThanOrEqual(r.view.w + 1);
+      expect(b.y + b.h, `${b.id} runs off the bottom`).toBeLessThanOrEqual(r.view.h + 1);
+    }
+
+    for (let i = 0; i < r.rects.length; i++) {
+      for (let j = i + 1; j < r.rects.length; j++) {
+        const a = r.rects[i];
+        const b = r.rects[j];
+        const over = a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        expect(over, `${a.id} overlaps ${b.id} at dpr ${r.view.dpr}`).toBe(false);
+      }
+    }
+
+    /* onTouchStart hands anything in the left 45% to the movement stick, and a
+       button there swallows the touch before the stick ever sees it. */
+    const band = r.view.w * 0.45;
+    for (const b of r.rects) {
+      expect(b.x, `${b.id} intrudes into the stick band`).toBeGreaterThanOrEqual(band);
+    }
+
+    await backToMenu();
+  });
 });
 
 test.describe('playing on the device', () => {
