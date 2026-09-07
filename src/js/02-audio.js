@@ -10,7 +10,9 @@ var AUD = {
     if(!AC) return;
     this.ctx = new AC();
     this.comp = this.ctx.createDynamicsCompressor();
-    this.comp.threshold.value = -14; this.comp.ratio.value = 9; this.comp.attack.value=0.003;
+    /* A 3ms attack rounds off the very thing that makes a gunshot read as a
+       gunshot, so the compressor is told to let the first millisecond through. */
+    this.comp.threshold.value = -14; this.comp.ratio.value = 9; this.comp.attack.value=0.0012;
     this.master = this.ctx.createGain();
     this.master.gain.value = SET.vol;
     this.master.connect(this.comp); this.comp.connect(this.ctx.destination);
@@ -56,22 +58,59 @@ var AUD = {
     var d = pos.distanceTo(PL.pos);
     return clamp(1 - d/60, 0.06, 1);
   },
+  /* The two things the guns were missing. `crack` is the initial snap - a few
+     milliseconds of wideband noise with no ramp on it at all, which is what the
+     ear reads as the round leaving the barrel. `thump` is the chest: a short
+     sine low enough to feel rather than hear. Everything above them was already
+     midrange, which is why it sounded thin however loud it got. */
+  crack:function(gain, when){
+    if(!this.ready) return;
+    var t = when || this.ctx.currentTime;
+    var src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+    var f = this.ctx.createBiquadFilter(); f.type = 'highpass';
+    f.frequency.value = 1800; f.Q.value = 0.7;
+    var g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t+0.016);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t+0.03);
+  },
+  thump:function(f0, f1, dur, gain, when){
+    if(!this.ready) return;
+    var t = when || this.ctx.currentTime;
+    var o = this.ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1,f1), t+dur);
+    var g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, t);          // no ramp in: the hit has to be instant
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t+dur+0.02);
+  },
   shot:function(kind, pos){
     if(!this.ready) return;
     var a = this.at(pos), t = this.ctx.currentTime;
     if(kind==='pistol'){
+      this.crack(.62*a, t);
+      this.thump(120, 52, 0.10, .40*a, t);
       this.noise(0.13, .55*a, 'bandpass', 1500, 1.1, t);
       this.tone(320, 60, 0.11, .35*a, 'square', t);
       this.noise(0.30, .12*a, 'highpass', 2500, .7, t+0.02);
     } else if(kind==='rifle'){
+      this.crack(.70*a, t);
+      this.thump(110, 46, 0.11, .44*a, t);
       this.noise(0.11, .5*a, 'bandpass', 1900, 1.4, t);
       this.tone(260, 55, 0.09, .32*a, 'sawtooth', t);
       this.noise(0.26, .1*a, 'highpass', 3200, .8, t+0.02);
     } else if(kind==='shotgun'){
+      this.crack(.80*a, t);
+      this.thump(95, 38, 0.18, .62*a, t);
       this.noise(0.26, .75*a, 'lowpass', 1100, .9, t);
       this.tone(150, 35, 0.22, .45*a, 'square', t);
       this.noise(0.45, .16*a, 'highpass', 1800, .6, t+0.03);
     } else if(kind==='sniper'){
+      this.crack(.92*a, t);
+      this.thump(85, 32, 0.22, .68*a, t);
       this.noise(0.35, .8*a, 'bandpass', 800, .9, t);
       this.tone(180, 30, 0.3, .5*a, 'sawtooth', t);
       this.noise(0.8, .16*a, 'highpass', 900, .5, t+0.05);
