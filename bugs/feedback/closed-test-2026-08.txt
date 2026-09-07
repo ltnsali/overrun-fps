@@ -1,0 +1,30 @@
+hey I've been testing your app and the buttons on the right are so crowded that I always end up accidentally swapping my weapon or firing my frags - also it makes it really hard to pan around with the camera on that side as well - I could be being very picky tho - I'm a hardcore COD player so controls are important to me.
+it has a control problem
+I mean, is very hard to aim
+9:20 PM
+maybe if you put the fire button inn the middle and the aim function on the right side... dont know...
+the game is enjoyable.
+
+There few thoughts I had since I played it ... I wil i will share them with you. As its similar with something I built in one of my app.. using Claude
+As a note when you go to 2nd floor in the middle and the enemy get stuck in the corner by the steps.
+
+When you get close to the edge you get hit and die even you far away from them high
+
+I tested your app , The mecanics are pretty solid , However , There needs to be a reconstructions of the controls , as there quite a lot of buttons , and firing / aiming is quite difficult , especially when we want to shoot and aim , sometimes you hit other buttons , which is undesired behavior :)
+Image
+Also i would love to hear some loud bullet sounds that make the gun punchier
+also maybe make the UI a bit smaller , since it takes quite a large chunk of the screen and you have a lot less of the actual game
+also an aim assist is quite important for shooter mobile games , so maybe add that too
+9:14 PM
+Sorry if that was too much talking , just giving feedback on improving your shooter game ;)
+
+I've been playing the game for two days and I'm extremely hooked; I'm starting to improve. I just wanted to give some feedback: I think all the buttons at the top of the screen are too big. It would be great if the player could customize them in the settings. I keep accidentally clicking "crunch" when trying to move, and every time I try to move the camera, I accidentally press "swap" and "frag". These things are driving me crazy in the game. I would be very grateful if you would take my feedback into consideration, thank you. By the way, the game is extremely fun and great, well done!
+1:09 PM
+By the way, as someone who was paralyzed during the crisis, I really enjoyed the stairs.
+
+One thing I ran into was that sometimes the enemy would be stuck behind a wall while trying to get to me. They try to come in the shortest path making them stuck.
+
+Good game bro. The mechanics are excellent.
+There's only one problem: it doesn't cover the whole screen. As you can see, the top tab is visible.
+7:31 PM
+Also, which engine did you use to develop the game? Or is it web-based?
